@@ -214,6 +214,15 @@ input:focus { border-color: var(--accent); }
 .admin-rank { color: var(--accent); font-weight: 900; width: 32px; }
 .admin-row strong { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .admin-stats { color: var(--muted); font-size: 12px; text-align: right; }
+.admin-actions { display: flex; gap: 6px; }
+.mini-btn {
+  border: 0; border-radius: 8px; padding: 7px 10px;
+  font-size: 12px; font-weight: 800; cursor: pointer; color: #fff;
+}
+.mini-btn.approve { background: #16a34a; }
+.mini-btn.delete { background: #dc2626; }
+.leader-row .admin-rank { color: #fde047; }
+.leader-empty { text-align: center; color: var(--muted); font-size: 14px; padding: 16px; }
 
 @media (min-width: 600px) {
   .game-wrap { max-width: 720px; margin: 0 auto; height: 100%; }

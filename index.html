@@ -69,6 +69,7 @@
         </div>
 
         <button class="btn btn-primary btn-run" id="startBtn">KOŞ 🏃</button>
+        <button class="btn btn-outline" id="leaderBtn" style="width:100%;margin-top:10px">🏆 Lider Tablosu</button>
         <button class="btn btn-outline" id="adminBtn" hidden style="width:100%;margin-top:10px">🛡️ Admin Paneli</button>
         <p class="hint">Zıplamak için boşluk tuşuna bas veya ekrana dokun.</p>
       </div>
@@ -78,7 +79,7 @@
     <section id="gameScreen" class="screen">
       <div class="game-wrap">
         <div class="hud">
-          <div class="hud-score">Kaçılan: <strong id="liveScore">0</strong> 🍆</div>
+          <div class="hud-score">Kaçan yarrak: <strong id="liveScore">0</strong> 🍆</div>
           <button class="btn btn-ghost btn-pause" id="pauseBtn">⏸ Duraklat</button>
         </div>
 
@@ -99,12 +100,24 @@
       </div>
     </section>
 
+    <!-- ============ LİDER TABLOSU ============ -->
+    <section id="leaderScreen" class="screen">
+      <div class="over-card">
+        <div class="logo-emoji">🏆</div>
+        <h2 class="over-title">En Çok Yarraktan Kaçanlar</h2>
+        <div id="leaderList" class="admin-list"></div>
+        <button class="btn btn-primary" id="leaderBackBtn" style="margin-top:16px">Geri Dön</button>
+      </div>
+    </section>
+
     <!-- ============ ADMIN ============ -->
     <section id="adminScreen" class="screen">
       <div class="over-card">
         <div class="logo-emoji">🛡️</div>
         <h2 class="over-title">Admin Paneli</h2>
-        <p class="subtitle">Tüm oyuncular (en yüksek skora göre)</p>
+        <p class="subtitle" style="margin:4px 0 10px">Onay bekleyen kullanıcılar</p>
+        <div id="adminPending" class="admin-list"></div>
+        <p class="subtitle" style="margin:14px 0 10px">Onaylı kullanıcılar</p>
         <div id="adminList" class="admin-list"></div>
         <button class="btn btn-primary" id="adminBackBtn" style="margin-top:16px">Geri Dön</button>
       </div>
@@ -118,7 +131,7 @@
         <p class="over-text" id="overText"></p>
         <div class="over-score">
           <span class="stat-num" id="finalScore">0</span>
-          <span class="stat-label">patlıcandan kaçtın</span>
+          <span class="stat-label">yarraktan kaçtın</span>
         </div>
         <p class="new-best" id="newBest" hidden>🎉 Yeni rekor!</p>
         <div class="over-actions">

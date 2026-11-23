@@ -39,6 +39,7 @@ function publicUser(row) {
     best: row.best,
     games: row.games,
     totalDodged: row.total_dodged,
+    approved: row.approved === 1,
     isAdmin: row.is_admin === 1,
   };
 }
@@ -62,6 +63,13 @@ async function authenticate(request, env) {
   if (!session) return null;
   const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(session.user_id).first();
   return user || null;
+}
+
+async function adminOnly(request, env) {
+  const user = await authenticate(request, env);
+  if (!user) return fail('Giriş yapmalısın.', 401);
+  if (user.is_admin !== 1) return fail('Bu sayfa sadece admin içindir.', 403);
+  return user;
 }
 
 async function readBody(request) {
@@ -106,14 +114,12 @@ export default {
 
       const salt = randomHex(16);
       const hash = await sha256(salt + ':' + body.password);
-      const result = await env.DB.prepare(
-        'INSERT INTO users (username, salt, pass_hash, face, best, games, total_dodged, is_admin, created_at) VALUES (?, ?, ?, NULL, 0, 0, 0, 0, ?)'
+      // Yeni kayıtlar admin onayına düşer
+      await env.DB.prepare(
+        'INSERT INTO users (username, salt, pass_hash, face, best, games, total_dodged, approved, is_admin, created_at) VALUES (?, ?, ?, NULL, 0, 0, 0, 0, 0, ?)'
       ).bind(username, salt, hash, Date.now()).run();
 
-      const userId = result.meta.last_row_id;
-      const token = await createSession(env, userId);
-      const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
-      return json({ token, user: publicUser(user) });
+      return json({ pending: true, username });
     }
 
     // ---- Giriş ----
@@ -126,6 +132,7 @@ export default {
       if (!user) return fail('Kullanıcı adı veya şifre yanlış.', 401);
       const hash = await sha256(user.salt + ':' + body.password);
       if (hash !== user.pass_hash) return fail('Kullanıcı adı veya şifre yanlış.', 401);
+      if (user.approved !== 1) return fail('Hesabın admin onayını bekliyor.', 403);
       const token = await createSession(env, user.id);
       return json({ token, user: publicUser(user) });
     }
@@ -181,15 +188,43 @@ export default {
       return json({ ok: true, face });
     }
 
-    // ---- Admin: tüm kullanıcılar ----
-    if (path === '/api/admin/users' && method === 'GET') {
-      const user = await authenticate(request, env);
-      if (!user) return fail('Giriş yapmalısın.', 401);
-      if (user.is_admin !== 1) return fail('Bu sayfa sadece admin içindir.', 403);
+    // ---- Lider tablosu (herkese açık) ----
+    if (path === '/api/leaderboard' && method === 'GET') {
       const { results } = await env.DB.prepare(
-        'SELECT username, best, games, total_dodged, created_at FROM users ORDER BY best DESC, username ASC LIMIT 200'
+        'SELECT username, best, games FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY best DESC, username ASC LIMIT 20'
       ).all();
       return json({ users: results });
+    }
+
+    // ---- Admin: tüm kullanıcılar ----
+    if (path === '/api/admin/users' && method === 'GET') {
+      const user = await adminOnly(request, env);
+      if (user instanceof Response) return user;
+      const { results } = await env.DB.prepare(
+        'SELECT id, username, best, games, total_dodged, approved, is_admin, created_at FROM users ORDER BY approved ASC, best DESC, username ASC LIMIT 200'
+      ).all();
+      return json({ users: results });
+    }
+
+    // ---- Admin: kullanıcı onayla ----
+    if (path === '/api/admin/approve' && method === 'POST') {
+      const user = await adminOnly(request, env);
+      if (user instanceof Response) return user;
+      const body = await readBody(request);
+      if (!body || !Number.isInteger(body.id)) return fail('Geçersiz kullanıcı.');
+      await env.DB.prepare('UPDATE users SET approved = 1 WHERE id = ? AND is_admin = 0').bind(body.id).run();
+      return json({ ok: true });
+    }
+
+    // ---- Admin: kullanıcı sil ----
+    if (path === '/api/admin/delete' && method === 'POST') {
+      const user = await adminOnly(request, env);
+      if (user instanceof Response) return user;
+      const body = await readBody(request);
+      if (!body || !Number.isInteger(body.id)) return fail('Geçersiz kullanıcı.');
+      await env.DB.prepare('DELETE FROM users WHERE id = ? AND is_admin = 0').bind(body.id).run();
+      await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(body.id).run();
+      return json({ ok: true });
     }
 
     return fail('Bulunamadı.', 404);

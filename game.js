@@ -48,6 +48,7 @@
     game: $('gameScreen'),
     over: $('gameOverScreen'),
     admin: $('adminScreen'),
+    leader: $('leaderScreen'),
   };
 
   function show(name) {
@@ -78,6 +79,7 @@
     const name = $('username').value.trim();
     const pass = $('password').value;
     authError.textContent = '';
+    authError.style.color = '';
 
     if (!name || !pass) {
       authError.textContent = 'Kullanıcı adı ve şifre gerekli.';
@@ -92,6 +94,12 @@
         body: { username: name, password: pass },
         auth: false,
       });
+      if (data.pending) {
+        authError.style.color = '#86efac';
+        authError.textContent = 'Kaydın alındı! Admin onayından sonra giriş yapabilirsin.';
+        $('password').value = '';
+        return;
+      }
       token = data.token;
       store.set(TOKEN_KEY, token);
       profile = data.user;
@@ -182,26 +190,30 @@
   });
 
   /* ============================================================
-     Admin paneli
+     Lider tablosu
      ============================================================ */
-  $('adminBtn').addEventListener('click', async () => {
-    const list = $('adminList');
+  $('leaderBtn').addEventListener('click', async () => {
+    const list = $('leaderList');
     list.innerHTML = '<p class="hint">Yükleniyor...</p>';
-    show('admin');
+    show('leader');
     try {
-      const data = await api('/api/admin/users');
+      const data = await api('/api/leaderboard', { auth: false });
       list.innerHTML = '';
+      if (!data.users.length) {
+        list.innerHTML = '<p class="leader-empty">Henüz kimse yarraktan kaçamadı.</p>';
+        return;
+      }
       data.users.forEach((u, i) => {
         const row = document.createElement('div');
-        row.className = 'admin-row';
+        row.className = 'admin-row leader-row';
         const rank = document.createElement('span');
         rank.className = 'admin-rank';
-        rank.textContent = '#' + (i + 1);
+        rank.textContent = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1);
         const name = document.createElement('strong');
-        name.textContent = u.username + (u.username === 'admin' ? ' 🛡️' : '');
+        name.textContent = u.username;
         const stats = document.createElement('span');
         stats.className = 'admin-stats';
-        stats.textContent = u.best + ' kaçış · ' + u.games + ' oyun';
+        stats.textContent = u.best + ' yarrak · ' + u.games + ' oyun';
         row.append(rank, name, stats);
         list.appendChild(row);
       });
@@ -209,6 +221,75 @@
       list.textContent = err.message;
     }
   });
+  $('leaderBackBtn').addEventListener('click', enterMenu);
+
+  /* ============================================================
+     Admin paneli: onayla / sil
+     ============================================================ */
+  function makeMini(label, className, onClick) {
+    const b = document.createElement('button');
+    b.className = 'mini-btn ' + className;
+    b.textContent = label;
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { await onClick(); openAdmin(); }
+      catch (err) { alert(err.message); b.disabled = false; }
+    });
+    return b;
+  }
+
+  function adminRow(u, pending, rank) {
+    const row = document.createElement('div');
+    row.className = 'admin-row';
+    const rankEl = document.createElement('span');
+    rankEl.className = 'admin-rank';
+    rankEl.textContent = pending ? '⏳' : u.is_admin ? '🛡️' : '#' + rank;
+    const name = document.createElement('strong');
+    name.textContent = u.username;
+    const stats = document.createElement('span');
+    stats.className = 'admin-stats';
+    stats.textContent = u.best + ' yarrak · ' + u.games + ' oyun';
+    const actions = document.createElement('div');
+    actions.className = 'admin-actions';
+
+    if (pending && !u.is_admin) {
+      actions.appendChild(makeMini('Onayla', 'approve', () =>
+        api('/api/admin/approve', { method: 'POST', body: { id: u.id } })));
+      actions.appendChild(makeMini('Reddet', 'delete', () =>
+        api('/api/admin/delete', { method: 'POST', body: { id: u.id } })));
+    } else if (!u.is_admin) {
+      actions.appendChild(makeMini('Sil', 'delete', () => {
+        if (!confirm(u.username + ' silinsin mi?')) throw new Error('İptal edildi.');
+        return api('/api/admin/delete', { method: 'POST', body: { id: u.id } });
+      }));
+    }
+
+    row.append(rankEl, name, stats, actions);
+    return row;
+  }
+
+  async function openAdmin() {
+    const pendingList = $('adminPending');
+    const list = $('adminList');
+    pendingList.innerHTML = '<p class="hint">Yükleniyor...</p>';
+    list.innerHTML = '<p class="hint">Yükleniyor...</p>';
+    show('admin');
+    try {
+      const data = await api('/api/admin/users');
+      pendingList.innerHTML = '';
+      list.innerHTML = '';
+      const pending = data.users.filter((u) => u.approved !== 1);
+      const approved = data.users.filter((u) => u.approved === 1);
+      if (!pending.length) pendingList.innerHTML = '<p class="leader-empty">Bekleyen kullanıcı yok.</p>';
+      else pending.forEach((u) => pendingList.appendChild(adminRow(u, true)));
+      if (!approved.length) list.innerHTML = '<p class="leader-empty">Onaylı kullanıcı yok.</p>';
+      else approved.forEach((u, i) => list.appendChild(adminRow(u, false, i + 1)));
+    } catch (err) {
+      pendingList.textContent = err.message;
+    }
+  }
+
+  $('adminBtn').addEventListener('click', openAdmin);
   $('adminBackBtn').addEventListener('click', enterMenu);
 
   /* ============================================================
@@ -390,75 +471,193 @@
     const cw = charW(), ch = charH(), cx = charX();
     const es = eggSize();
 
+    // ---- Yeşil gökyüzü ----
     const sky = ctx.createLinearGradient(0, 0, 0, H);
-    sky.addColorStop(0, '#3b0d57');
-    sky.addColorStop(0.7, '#6d28d9');
-    sky.addColorStop(1, '#4c1d95');
+    sky.addColorStop(0, '#0a3a1c');
+    sky.addColorStop(0.55, '#166534');
+    sky.addColorStop(1, '#4ade80');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, W, H);
 
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
-    ctx.beginPath();
-    ctx.arc(W * 0.78, H * 0.2, Math.min(W, H) * 0.09, 0, Math.PI * 2);
-    ctx.fill();
+    // ---- Bulutlar (yavaş paralaks) ----
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    const cSpan = W + 400;
+    for (let i = 0; i < 4; i++) {
+      let bx = i * 230 + 80 - ((s.distance * 0.05) % cSpan);
+      bx = ((bx % cSpan) + cSpan) % cSpan - 200;
+      ctx.beginPath();
+      ctx.ellipse(bx, H * 0.13, 58, 17, 0, 0, Math.PI * 2);
+      ctx.ellipse(bx + 40, H * 0.12, 42, 21, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-    ctx.fillStyle = '#1c0a2a';
+    // ---- Uzak tepeler ----
+    ctx.fillStyle = '#14532d';
+    const farStep = 250, farOff = (s.distance * 0.12) % farStep;
+    for (let x = -farStep - farOff; x < W + farStep; x += farStep) {
+      ctx.beginPath();
+      ctx.moveTo(x, g);
+      ctx.quadraticCurveTo(x + farStep / 2, g - H * 0.3, x + farStep, g);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // ---- Yakın tepeler ----
+    ctx.fillStyle = '#15803d';
+    const nearStep = 180, nearOff = (s.distance * 0.25) % nearStep;
+    for (let x = -nearStep - nearOff; x < W + nearStep; x += nearStep) {
+      ctx.beginPath();
+      ctx.moveTo(x, g);
+      ctx.quadraticCurveTo(x + nearStep / 2, g - H * 0.17, x + nearStep, g);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // ---- Çam ağaçları ----
+    const treeStep = 150, treeOff = (s.distance * 0.45) % treeStep;
+    for (let x = -treeStep - treeOff; x < W + treeStep; x += treeStep) {
+      const th = H * 0.15;
+      ctx.fillStyle = '#064e3b';
+      ctx.fillRect(x + 26, g - th * 0.35, 5, th * 0.35);
+      ctx.beginPath();
+      ctx.moveTo(x + 28, g - th);
+      ctx.lineTo(x + 8, g - th * 0.18);
+      ctx.lineTo(x + 48, g - th * 0.18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x + 28, g - th * 0.78);
+      ctx.lineTo(x + 12, g - th * 0.05);
+      ctx.lineTo(x + 44, g - th * 0.05);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // ---- Zemin: çim + toprak yol ----
+    ctx.fillStyle = '#22c55e';
     ctx.fillRect(0, g, W, H - g);
-    ctx.fillStyle = '#a855f7';
-    ctx.fillRect(0, g, W, 4);
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(0, g + 7, W, H - g - 7);
+    ctx.fillStyle = '#86efac';
+    ctx.fillRect(0, g, W, 7);
+    ctx.fillStyle = 'rgba(253,230,138,0.35)';
     const dash = 40, gap = 30, period = dash + gap;
     const offset = (s.distance % period);
     for (let x = -offset; x < W; x += period) {
-      ctx.fillRect(x, g + (H - g) * 0.55, dash, 3);
+      ctx.fillRect(x, g + (H - g) * 0.5, dash, 3);
     }
 
+    // ---- Patlıcanlar (arkada açık halka: yeşillikte net görünsün) ----
     ctx.font = es + 'px sans-serif';
     ctx.textBaseline = 'alphabetic';
-    for (const egg of s.eggs) ctx.fillText('🍆', egg.x, g - 2);
+    for (const egg of s.eggs) {
+      ctx.beginPath();
+      ctx.arc(egg.x + es * 0.45, g - es * 0.5, es * 0.62, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(254,240,138,0.9)';
+      ctx.fill();
+      ctx.fillText('🍆', egg.x, g - 2);
+    }
 
     drawRunner(s.top, cw, ch, cx, g);
   }
 
   function drawRunner(top, w, h, x, g) {
-    const cx = x + w / 2;
-    const headR = w * 0.36;
-    const headCy = top + headR + 2;
-    const bodyTop = headCy + headR * 0.75;
-    const bodyBottom = top + h * 0.78;
-    const swing = running && !paused ? Math.sin(animTime * 16) : 0;
     const air = state.jumping;
+    const moving = running && !paused;
+    const phase = animTime * 12;
+    const bob = moving && !air ? Math.abs(Math.sin(phase)) * h * 0.025 : 0;
+    const y = top + bob;
+    const cx = x + w / 2;
+    const headR = w * 0.3;
+    const headCy = y + headR + h * 0.02;
+    const hipY = y + h * 0.52;
+    const shoulderY = y + h * 0.3;
+    const legLen = g - hipY;
+
+    // Yer gölgesi
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(cx, g + 2, w * (air ? 0.35 : 0.5), h * 0.045, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Hız çizgileri
+    if (moving) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 3; i++) {
+        const ly = y + h * (0.25 + i * 0.2);
+        ctx.beginPath();
+        ctx.moveTo(x - 6 - (i % 2) * 12, ly);
+        ctx.lineTo(x - 32 - (i % 2) * 12, ly);
+        ctx.stroke();
+      }
+    }
 
     ctx.save();
-    ctx.strokeStyle = '#0b0410';
-    ctx.lineWidth = Math.max(4, w * 0.11);
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-    const legLen = (g - bodyBottom);
-    const footY = air ? bodyBottom + legLen * 0.55 : g - 2;
-    ctx.beginPath();
-    ctx.moveTo(cx - w * 0.1, bodyBottom);
-    ctx.lineTo(cx - w * 0.1 + (air ? -w * 0.18 : swing * w * 0.22), footY);
-    ctx.moveTo(cx + w * 0.1, bodyBottom);
-    ctx.lineTo(cx + w * 0.1 + (air ? w * 0.18 : -swing * w * 0.22), footY);
-    ctx.stroke();
+    // Bacaklar: kalça -> diz -> ayak, dönüşümlü adım
+    for (const side of [-1, 1]) {
+      const p = phase + (side === -1 ? 0 : Math.PI);
+      const s = Math.sin(p), c = Math.cos(p);
+      const hipX = cx + side * w * 0.11;
+      const footX = hipX + s * w * 0.6;
+      const lift = Math.max(0, c) * h * 0.16;
+      const footY = (air ? hipY + legLen * 0.65 : g - 2) - lift;
+      const kneeX = (hipX + footX) / 2 + side * w * 0.05;
+      const kneeY = (hipY + footY) / 2 + h * 0.03;
 
-    ctx.strokeStyle = '#f1c27d';
-    ctx.lineWidth = Math.max(3, w * 0.08);
-    ctx.beginPath();
-    ctx.moveTo(cx - w * 0.28, bodyTop + h * 0.08);
-    ctx.lineTo(cx - w * 0.42, bodyTop + h * 0.22 + (air ? -6 : -swing * w * 0.18));
-    ctx.moveTo(cx + w * 0.28, bodyTop + h * 0.08);
-    ctx.lineTo(cx + w * 0.42, bodyTop + h * 0.22 + (air ? -6 : swing * w * 0.18));
-    ctx.stroke();
+      ctx.strokeStyle = '#1e3a8a';
+      ctx.lineWidth = Math.max(5, w * 0.17);
+      ctx.beginPath();
+      ctx.moveTo(hipX, hipY);
+      ctx.lineTo(kneeX, kneeY);
+      ctx.stroke();
 
+      ctx.strokeStyle = '#f1c27d';
+      ctx.lineWidth = Math.max(4, w * 0.13);
+      ctx.beginPath();
+      ctx.moveTo(kneeX, kneeY);
+      ctx.lineTo(footX, footY);
+      ctx.stroke();
+
+      ctx.fillStyle = '#111827';
+      ctx.beginPath();
+      ctx.ellipse(footX + 2, footY, w * 0.13, h * 0.03, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Kollar: bacakların ters yönde, dirsekten bükük
+    for (const side of [-1, 1]) {
+      const p = phase + (side === -1 ? Math.PI : 0);
+      const s = Math.sin(p);
+      const shX = cx + side * w * 0.25;
+      const elX = shX + s * w * 0.22;
+      const elY = shoulderY + h * 0.12;
+      const handX = elX - s * w * 0.06;
+      const handY = elY - h * 0.06;
+      ctx.strokeStyle = '#f1c27d';
+      ctx.lineWidth = Math.max(4, w * 0.1);
+      ctx.beginPath();
+      ctx.moveTo(shX, shoulderY);
+      ctx.lineTo(elX, elY);
+      ctx.lineTo(handX, handY);
+      ctx.stroke();
+    }
+
+    // Gövde
     ctx.fillStyle = '#22d3ee';
-    roundRect(x + w * 0.18, bodyTop, w * 0.64, bodyBottom - bodyTop, w * 0.18);
+    roundRect(cx - w * 0.27, shoulderY - h * 0.04, w * 0.54, hipY - shoulderY + h * 0.1, w * 0.16);
     ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,0.25)';
     ctx.lineWidth = 2;
     ctx.stroke();
 
+    // Kafa
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, headCy, headR, 0, Math.PI * 2);
