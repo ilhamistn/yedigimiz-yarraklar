@@ -240,10 +240,12 @@
       b.disabled = true;
       try {
         await onClick();
-        $('adminStatus').textContent = '✓ ' + label + ' işlemi tamamlandı.';
+        const st = $('adminStatus');
+        if (st) st.textContent = '✓ ' + label + ' işlemi tamamlandı.';
         openAdmin();
       } catch (err) {
-        $('adminStatus').textContent = 'Hata: ' + err.message;
+        const st = $('adminStatus');
+        if (st) st.textContent = 'Hata: ' + err.message;
         b.disabled = false;
       }
     });
@@ -283,6 +285,7 @@
   async function openAdmin() {
     const pendingList = $('adminPending');
     const list = $('adminList');
+    if (!pendingList || !list) return;
     pendingList.innerHTML = '<p class="hint">Yükleniyor...</p>';
     list.innerHTML = '<p class="hint">Yükleniyor...</p>';
     show('admin');
@@ -301,8 +304,17 @@
     }
   }
 
-  $('adminBtn').addEventListener('click', () => { $('adminStatus').textContent = ''; openAdmin(); });
-  $('adminRefreshBtn').addEventListener('click', () => { $('adminStatus').textContent = ''; openAdmin(); });
+  $('adminBtn').addEventListener('click', () => {
+    const st = $('adminStatus');
+    if (st) st.textContent = '';
+    openAdmin();
+  });
+  const refreshBtn = $('adminRefreshBtn');
+  if (refreshBtn) refreshBtn.addEventListener('click', () => {
+    const st = $('adminStatus');
+    if (st) st.textContent = '';
+    openAdmin();
+  });
   $('adminBackBtn').addEventListener('click', enterMenu);
 
   /* ============================================================
