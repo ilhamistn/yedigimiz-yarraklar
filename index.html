@@ -4,8 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#2b0b3f" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Yediğimiz Yarraklar</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=4" />
 </head>
 <body>
   <div id="app">
@@ -119,7 +120,11 @@
         <div id="adminPending" class="admin-list"></div>
         <p class="subtitle" style="margin:14px 0 10px">Onaylı kullanıcılar</p>
         <div id="adminList" class="admin-list"></div>
-        <button class="btn btn-primary" id="adminBackBtn" style="margin-top:16px">Geri Dön</button>
+        <p id="adminStatus" class="hint"></p>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-outline" id="adminRefreshBtn" style="flex:1;padding:10px">🔄 Yenile</button>
+          <button class="btn btn-primary" id="adminBackBtn" style="flex:1;padding:10px">Geri Dön</button>
+        </div>
       </div>
     </section>
 
@@ -142,6 +147,6 @@
     </section>
 
   </div>
-  <script src="game.js"></script>
+  <script src="game.js?v=4"></script>
 </body>
 </html>

@@ -206,7 +206,7 @@ input:focus { border-color: var(--accent); }
 /* ---------- Admin ---------- */
 .admin-list { max-height: 45vh; overflow-y: auto; text-align: left; }
 .admin-row {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 10px 12px; margin-bottom: 6px;
   background: rgba(0,0,0,0.25); border-radius: 10px;
   font-size: 14px;
@@ -214,7 +214,7 @@ input:focus { border-color: var(--accent); }
 .admin-rank { color: var(--accent); font-weight: 900; width: 32px; }
 .admin-row strong { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .admin-stats { color: var(--muted); font-size: 12px; text-align: right; }
-.admin-actions { display: flex; gap: 6px; }
+.admin-actions { display: flex; gap: 6px; margin-left: auto; }
 .mini-btn {
   border: 0; border-radius: 8px; padding: 7px 10px;
   font-size: 12px; font-weight: 800; cursor: pointer; color: #fff;

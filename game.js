@@ -153,6 +153,12 @@
     if (!profile) { show('auth'); return; }
     $('userNameText').textContent = profile.username;
     $('adminBtn').hidden = !profile.isAdmin;
+    if (profile.isAdmin) {
+      api('/api/admin/users').then((d) => {
+        const n = d.users.filter((u) => u.approved !== 1).length;
+        $('adminBtn').textContent = '🛡️ Admin Paneli' + (n ? ' (' + n + ' bekliyor)' : '');
+      }).catch(() => {});
+    }
     renderFace();
     updateStatsUI();
     show('menu');
@@ -232,8 +238,14 @@
     b.textContent = label;
     b.addEventListener('click', async () => {
       b.disabled = true;
-      try { await onClick(); openAdmin(); }
-      catch (err) { alert(err.message); b.disabled = false; }
+      try {
+        await onClick();
+        $('adminStatus').textContent = '✓ ' + label + ' işlemi tamamlandı.';
+        openAdmin();
+      } catch (err) {
+        $('adminStatus').textContent = 'Hata: ' + err.message;
+        b.disabled = false;
+      }
     });
     return b;
   }
@@ -289,7 +301,8 @@
     }
   }
 
-  $('adminBtn').addEventListener('click', openAdmin);
+  $('adminBtn').addEventListener('click', () => { $('adminStatus').textContent = ''; openAdmin(); });
+  $('adminRefreshBtn').addEventListener('click', () => { $('adminStatus').textContent = ''; openAdmin(); });
   $('adminBackBtn').addEventListener('click', enterMenu);
 
   /* ============================================================
@@ -315,7 +328,7 @@
   const charW = () => Math.max(40, Math.min(70, W * 0.1));
   const charH = () => charW() * 1.4;
   const charX = () => W * 0.16;
-  const eggSize = () => charW() * 0.92;
+  const eggSize = () => charW();
 
   const GRAVITY = 2100;
   const JUMP_V = 780;
@@ -471,16 +484,16 @@
     const cw = charW(), ch = charH(), cx = charX();
     const es = eggSize();
 
-    // ---- Yeşil gökyüzü ----
+    // ---- Beyaz gökyüzü ----
     const sky = ctx.createLinearGradient(0, 0, 0, H);
-    sky.addColorStop(0, '#0a3a1c');
-    sky.addColorStop(0.55, '#166534');
-    sky.addColorStop(1, '#4ade80');
+    sky.addColorStop(0, '#ffffff');
+    sky.addColorStop(0.7, '#f8fafc');
+    sky.addColorStop(1, '#e2e8f0');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, W, H);
 
     // ---- Bulutlar (yavaş paralaks) ----
-    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    ctx.fillStyle = '#e2e8f0';
     const cSpan = W + 400;
     for (let i = 0; i < 4; i++) {
       let bx = i * 230 + 80 - ((s.distance * 0.05) % cSpan);
@@ -492,7 +505,7 @@
     }
 
     // ---- Uzak tepeler ----
-    ctx.fillStyle = '#14532d';
+    ctx.fillStyle = '#dcfce7';
     const farStep = 250, farOff = (s.distance * 0.12) % farStep;
     for (let x = -farStep - farOff; x < W + farStep; x += farStep) {
       ctx.beginPath();
@@ -503,7 +516,7 @@
     }
 
     // ---- Yakın tepeler ----
-    ctx.fillStyle = '#15803d';
+    ctx.fillStyle = '#bbf7d0';
     const nearStep = 180, nearOff = (s.distance * 0.25) % nearStep;
     for (let x = -nearStep - nearOff; x < W + nearStep; x += nearStep) {
       ctx.beginPath();
@@ -517,7 +530,7 @@
     const treeStep = 150, treeOff = (s.distance * 0.45) % treeStep;
     for (let x = -treeStep - treeOff; x < W + treeStep; x += treeStep) {
       const th = H * 0.15;
-      ctx.fillStyle = '#064e3b';
+      ctx.fillStyle = '#4ade80';
       ctx.fillRect(x + 26, g - th * 0.35, 5, th * 0.35);
       ctx.beginPath();
       ctx.moveTo(x + 28, g - th);
@@ -547,15 +560,18 @@
       ctx.fillRect(x, g + (H - g) * 0.5, dash, 3);
     }
 
-    // ---- Patlıcanlar (arkada açık halka: yeşillikte net görünsün) ----
+    // ---- Patlıcanlar (beyaz zeminde net görünsün: gölge halka + kontur) ----
     ctx.font = es + 'px sans-serif';
     ctx.textBaseline = 'alphabetic';
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(15,23,42,0.25)';
     for (const egg of s.eggs) {
       ctx.beginPath();
       ctx.arc(egg.x + es * 0.45, g - es * 0.5, es * 0.62, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(254,240,138,0.9)';
+      ctx.fillStyle = 'rgba(15,23,42,0.10)';
       ctx.fill();
       ctx.fillText('🍆', egg.x, g - 2);
+      ctx.strokeText('🍆', egg.x, g - 2);
     }
 
     drawRunner(s.top, cw, ch, cx, g);
