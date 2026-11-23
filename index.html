@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#2b0b3f" />
+  <title>Yediğimiz Yarraklar</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ============ GİRİŞ / KAYIT ============ -->
+    <section id="authScreen" class="screen active">
+      <div class="auth-card">
+        <div class="logo-emoji">🍆</div>
+        <h1 class="title">Yediğimiz<br /><span>Yarraklar</span></h1>
+        <p class="subtitle">Koş, zıpla, patlıcandan kaç!</p>
+
+        <div class="tabs">
+          <button class="auth-tab active" data-mode="login">Giriş Yap</button>
+          <button class="auth-tab" data-mode="register">Kayıt Ol</button>
+        </div>
+
+        <form id="authForm" autocomplete="off">
+          <label for="username">Kullanıcı Adı</label>
+          <input id="username" type="text" placeholder="kullanıcı adın" required maxlength="20" />
+
+          <label for="password">Şifre</label>
+          <input id="password" type="password" placeholder="şifren" required maxlength="30" />
+
+          <p id="authError" class="error"></p>
+          <button type="submit" class="btn btn-primary" id="authSubmit">Giriş Yap</button>
+        </form>
+        <p class="hint">Kayıtlar bu cihazda saklanır (localStorage).</p>
+      </div>
+    </section>
+
+    <!-- ============ ANA MENÜ ============ -->
+    <section id="menuScreen" class="screen">
+      <div class="menu-card">
+        <header class="topbar">
+          <div class="user-chip">
+            <span class="user-avatar" id="userAvatar">😎</span>
+            <span id="userNameText">Oyuncu</span>
+          </div>
+          <button class="btn btn-ghost" id="logoutBtn">Çıkış</button>
+        </header>
+
+        <div class="logo-emoji small">🍆</div>
+        <h1 class="title menu-title">Yediğimiz <span>Yarraklar</span></h1>
+
+        <div class="face-picker">
+          <div class="face-preview" id="facePreview">😄</div>
+          <div class="face-info">
+            <strong>Koşan karakterin yüzü</strong>
+            <span>Fotoğraf yükle, yüzünü değiştir</span>
+            <label class="btn btn-outline file-btn">
+              📷 Fotoğraf Ekle
+              <input type="file" id="photoInput" accept="image/*" hidden />
+            </label>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><span class="stat-num" id="bestScore">0</span><span class="stat-label">En İyi</span></div>
+          <div class="stat"><span class="stat-num" id="totalDodged">0</span><span class="stat-label">Toplam Kaçış</span></div>
+          <div class="stat"><span class="stat-num" id="gamesPlayed">0</span><span class="stat-label">Oyun</span></div>
+        </div>
+
+        <button class="btn btn-primary btn-run" id="startBtn">KOŞ 🏃</button>
+        <p class="hint">Zıplamak için boşluk tuşuna bas veya ekrana dokun.</p>
+      </div>
+    </section>
+
+    <!-- ============ OYUN ============ -->
+    <section id="gameScreen" class="screen">
+      <div class="game-wrap">
+        <div class="hud">
+          <div class="hud-score">Kaçılan: <strong id="liveScore">0</strong> 🍆</div>
+          <button class="btn btn-ghost btn-pause" id="pauseBtn">⏸ Duraklat</button>
+        </div>
+
+        <div class="canvas-wrap" id="canvasWrap">
+          <canvas id="gameCanvas"></canvas>
+          <div class="pause-overlay" id="pauseOverlay">
+            <div class="pause-box">
+              <h2>Duraklatıldı</h2>
+              <button class="btn btn-primary" id="resumeBtn">Devam Et</button>
+              <button class="btn btn-outline" id="quitBtn">Menüye Dön</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="btn btn-jump" id="jumpBtn">ZIPLA ⤴️</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ OYUN BİTİŞ ============ -->
+    <section id="gameOverScreen" class="screen">
+      <div class="over-card">
+        <div class="logo-emoji">💀</div>
+        <h2 class="over-title">Yarrağı Yedin!</h2>
+        <p class="over-text" id="overText"></p>
+        <div class="over-score">
+          <span class="stat-num" id="finalScore">0</span>
+          <span class="stat-label">patlıcandan kaçtın</span>
+        </div>
+        <p class="new-best" id="newBest" hidden>🎉 Yeni rekor!</p>
+        <div class="over-actions">
+          <button class="btn btn-primary" id="retryBtn">Tekrar Koş</button>
+          <button class="btn btn-outline" id="menuBtn">Menü</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>
