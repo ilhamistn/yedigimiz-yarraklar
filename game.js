@@ -5,6 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
+  const APP_VERSION = 6;
   const TOKEN_KEY = 'yy_token_v1';
   const mem = {};
 
@@ -49,6 +50,7 @@
     over: $('gameOverScreen'),
     admin: $('adminScreen'),
     leader: $('leaderScreen'),
+    settings: $('settingsScreen'),
   };
 
   function show(name) {
@@ -316,6 +318,71 @@
     openAdmin();
   });
   $('adminBackBtn').addEventListener('click', enterMenu);
+
+  /* ============================================================
+     Ayarlar: şifre değiştir (admin dahil)
+     ============================================================ */
+  $('settingsBtn').addEventListener('click', () => {
+    $('passError').textContent = '';
+    $('passError').style.color = '';
+    show('settings');
+  });
+  $('settingsBackBtn').addEventListener('click', enterMenu);
+
+  $('passForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const current = $('currentPass').value;
+    const next = $('newPass').value;
+    const next2 = $('newPass2').value;
+    const err = $('passError');
+    err.textContent = '';
+    err.style.color = '';
+
+    if (next !== next2) { err.textContent = 'Yeni şifreler eşleşmiyor.'; return; }
+    if (next.length < 4) { err.textContent = 'Yeni şifre en az 4 karakter olmalı.'; return; }
+
+    $('savePassBtn').disabled = true;
+    try {
+      const data = await api('/api/password', { method: 'POST', body: { current, next } });
+      token = data.token;
+      store.set(TOKEN_KEY, token);
+      $('currentPass').value = '';
+      $('newPass').value = '';
+      $('newPass2').value = '';
+      err.style.color = '#86efac';
+      err.textContent = 'Şifren değiştirildi.';
+    } catch (ex) {
+      err.textContent = ex.message;
+    } finally {
+      $('savePassBtn').disabled = false;
+    }
+  });
+
+  /* ============================================================
+     Tam ekran
+     ============================================================ */
+  const fullBtn = $('fullscreenBtn');
+  fullBtn.addEventListener('click', async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else if (screens.game.requestFullscreen) {
+        await screens.game.requestFullscreen();
+      } else if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        fullBtn.textContent = 'Desteklenmiyor';
+        return;
+      }
+      try {
+        if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+      } catch (ex) { /* bazı tarayıcılar izin vermez */ }
+    } catch (ex) { /* kullanıcı iptal edebilir */ }
+  });
+  document.addEventListener('fullscreenchange', () => {
+    fullBtn.textContent = document.fullscreenElement ? '↩️ Çık' : '⛶ Tam Ekran';
+    resizeCanvas();
+  });
 
   /* ============================================================
      Oyun motoru
@@ -729,9 +796,18 @@
   });
 
   /* ============================================================
-     Başlangıç: kayıtlı oturum varsa sunucudan profili al
+     Başlangıç: güncelleme kontrolü + kayıtlı oturum
      ============================================================ */
   (async () => {
+    try {
+      const res = await fetch('version.json?_=' + Date.now());
+      const v = await res.json();
+      if (v.version > APP_VERSION && location.search.indexOf('updated=') === -1) {
+        location.replace(location.pathname + '?updated=' + Date.now());
+        return;
+      }
+    } catch (e) { /* dosya yoksa eski sürümle devam */ }
+
     if (!token) { show('auth'); return; }
     try {
       const data = await api('/api/me');

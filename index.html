@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#2b0b3f" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Yediğimiz Yarraklar</title>
-  <link rel="stylesheet" href="style.css?v=5" />
+  <link rel="stylesheet" href="style.css?v=6" />
 </head>
 <body>
   <div id="app">
@@ -72,6 +72,7 @@
         <button class="btn btn-primary btn-run" id="startBtn">KOŞ 🏃</button>
         <button class="btn btn-outline" id="leaderBtn" style="width:100%;margin-top:10px">🏆 Lider Tablosu</button>
         <button class="btn btn-outline" id="adminBtn" hidden style="width:100%;margin-top:10px">🛡️ Admin Paneli</button>
+        <button class="btn btn-outline" id="settingsBtn" style="width:100%;margin-top:10px">⚙️ Ayarlar / Şifre Değiştir</button>
         <p class="hint">Zıplamak için boşluk tuşuna bas veya ekrana dokun.</p>
       </div>
     </section>
@@ -81,7 +82,10 @@
       <div class="game-wrap">
         <div class="hud">
           <div class="hud-score">Kaçan yarrak: <strong id="liveScore">0</strong> 🍆</div>
-          <button class="btn btn-ghost btn-pause" id="pauseBtn">⏸ Duraklat</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-pause" id="fullscreenBtn">⛶ Tam Ekran</button>
+            <button class="btn btn-ghost btn-pause" id="pauseBtn">⏸ Duraklat</button>
+          </div>
         </div>
 
         <div class="canvas-wrap" id="canvasWrap">
@@ -98,6 +102,29 @@
         <div class="controls">
           <button class="btn btn-jump" id="jumpBtn">ZIPLA ⤴️</button>
         </div>
+      </div>
+    </section>
+
+    <!-- ============ AYARLAR ============ -->
+    <section id="settingsScreen" class="screen">
+      <div class="auth-card">
+        <div class="logo-emoji">🔑</div>
+        <h2 class="over-title">Şifre Değiştir</h2>
+        <p class="subtitle">Admin hesabı dahil tüm kullanıcılar şifresini buradan değiştirebilir.</p>
+        <form id="passForm" autocomplete="off">
+          <label for="currentPass">Şu anki şifre</label>
+          <input id="currentPass" type="password" required maxlength="64" />
+
+          <label for="newPass">Yeni şifre</label>
+          <input id="newPass" type="password" required minlength="4" maxlength="64" />
+
+          <label for="newPass2">Yeni şifre (tekrar)</label>
+          <input id="newPass2" type="password" required minlength="4" maxlength="64" />
+
+          <p id="passError" class="error"></p>
+          <button type="submit" class="btn btn-primary" id="savePassBtn">Şifreyi Kaydet</button>
+        </form>
+        <button class="btn btn-outline" id="settingsBackBtn" style="width:100%;margin-top:10px">Geri Dön</button>
       </div>
     </section>
 
@@ -147,6 +174,16 @@
     </section>
 
   </div>
-  <script src="game.js?v=5"></script>
+  <!-- Her açılışta JS/CSS'i benzersiz sürümle yükle: eski önbellek kalmasın -->
+  <script>
+    (function () {
+      var t = Date.now();
+      var css = document.querySelector('link[rel="stylesheet"]');
+      if (css) css.href = 'style.css?v=' + t;
+      var s = document.createElement('script');
+      s.src = 'game.js?v=' + t;
+      document.body.appendChild(s);
+    })();
+  </script>
 </body>
 </html>
