@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 6;
+  const APP_VERSION = 7;
   const TOKEN_KEY = 'yy_token_v1';
   const mem = {};
 
@@ -425,7 +425,7 @@
       vy: 0,
       jumping: false,
       eggs: [],
-      spawnTimer: 0.7,
+      spawnTimer: 0.4 + Math.random() * 0.6,
       score: 0,
       distance: 0,
       speed: 300,
@@ -522,9 +522,19 @@
 
     s.spawnTimer -= dt;
     if (s.spawnTimer <= 0) {
-      const minGap = Math.max(0.55, 1.25 - s.score * 0.018);
-      s.spawnTimer = minGap + Math.random() * 0.45;
-      s.eggs.push({ x: W + 20, counted: false });
+      // Rastgele dalga: bazen tek, bazen 2-3 patlıcan arka arkaya
+      const r = Math.random();
+      let count = 1;
+      if (s.score > 4 && r < 0.25) count = 2;
+      if (s.score > 12 && r < 0.08) count = 3;
+
+      const spacing = es * (1.7 + Math.random() * 0.7);
+      for (let i = 0; i < count; i++) {
+        s.eggs.push({ x: W + 20 + i * (spacing + Math.random() * 25), counted: false });
+      }
+
+      const minGap = Math.max(0.4, 1.4 - s.score * 0.018);
+      s.spawnTimer = minGap + Math.random() * (count > 1 ? 1.1 : 0.75);
     }
 
     for (let i = s.eggs.length - 1; i >= 0; i--) {
