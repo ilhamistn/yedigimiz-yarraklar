@@ -69,6 +69,7 @@
         </div>
 
         <button class="btn btn-primary btn-run" id="startBtn">KOŞ 🏃</button>
+        <button class="btn btn-outline" id="adminBtn" hidden style="width:100%;margin-top:10px">🛡️ Admin Paneli</button>
         <p class="hint">Zıplamak için boşluk tuşuna bas veya ekrana dokun.</p>
       </div>
     </section>
@@ -95,6 +96,17 @@
         <div class="controls">
           <button class="btn btn-jump" id="jumpBtn">ZIPLA ⤴️</button>
         </div>
+      </div>
+    </section>
+
+    <!-- ============ ADMIN ============ -->
+    <section id="adminScreen" class="screen">
+      <div class="over-card">
+        <div class="logo-emoji">🛡️</div>
+        <h2 class="over-title">Admin Paneli</h2>
+        <p class="subtitle">Tüm oyuncular (en yüksek skora göre)</p>
+        <div id="adminList" class="admin-list"></div>
+        <button class="btn btn-primary" id="adminBackBtn" style="margin-top:16px">Geri Dön</button>
       </div>
     </section>
 

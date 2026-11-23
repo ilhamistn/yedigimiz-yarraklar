@@ -2,10 +2,10 @@
   'use strict';
 
   /* ============================================================
-     Storage (localStorage ile yedek, erişilemezse hafızada tutar)
+     API & oturum
      ============================================================ */
-  const USERS_KEY = 'yy_users_v1';
-  const SESSION_KEY = 'yy_session_v1';
+  const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
+  const TOKEN_KEY = 'yy_token_v1';
   const mem = {};
 
   const store = {
@@ -13,22 +13,33 @@
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) { mem[k] = v; } },
   };
 
-  function loadUsers() {
-    try { return JSON.parse(store.get(USERS_KEY)) || {}; } catch (e) { return {}; }
-  }
-  function saveUsers(u) { store.set(USERS_KEY, JSON.stringify(u)); }
+  let token = store.get(TOKEN_KEY) || '';
+  let profile = null; // { username, face, best, games, totalDodged, isAdmin }
 
-  function hashPass(pw) {
-    let h = 5381;
-    for (let i = 0; i < pw.length; i++) h = ((h << 5) + h + pw.charCodeAt(i)) >>> 0;
-    return h.toString(16);
-  }
+  async function api(path, options = {}) {
+    const { method = 'GET', body, auth = true } = options;
+    const headers = { 'Content-Type': 'application/json' };
+    if (auth && token) headers.Authorization = 'Bearer ' + token;
 
-  let users = loadUsers();
-  let currentUser = store.get(SESSION_KEY);
+    let response;
+    try {
+      response = await fetch(API + path, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch (e) {
+      throw new Error('Sunucuya ulaşılamadı. İnternet bağlantını kontrol et.');
+    }
+
+    let data = {};
+    try { data = await response.json(); } catch (e) { /* boş yanıt */ }
+    if (!response.ok) throw new Error(data.error || 'Bir hata oluştu.');
+    return data;
+  }
 
   /* ============================================================
-     DOM
+     DOM & ekranlar
      ============================================================ */
   const $ = (id) => document.getElementById(id);
   const screens = {
@@ -36,6 +47,7 @@
     menu: $('menuScreen'),
     game: $('gameScreen'),
     over: $('gameOverScreen'),
+    admin: $('adminScreen'),
   };
 
   function show(name) {
@@ -44,7 +56,7 @@
   }
 
   /* ============================================================
-     Auth
+     Giriş / Kayıt
      ============================================================ */
   const authForm = $('authForm');
   const authError = $('authError');
@@ -61,7 +73,7 @@
     });
   });
 
-  authForm.addEventListener('submit', (e) => {
+  authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = $('username').value.trim();
     const pass = $('password').value;
@@ -72,52 +84,44 @@
       return;
     }
 
-    if (authMode === 'register') {
-      if (users[name]) {
-        authError.textContent = 'Bu kullanıcı adı zaten var.';
-        return;
-      }
-      users[name] = {
-        pass: hashPass(pass),
-        face: null,
-        best: 0,
-        games: 0,
-        totalDodged: 0,
-      };
-      saveUsers(users);
-    } else {
-      const u = users[name];
-      if (!u || u.pass !== hashPass(pass)) {
-        authError.textContent = 'Kullanıcı adı veya şifre yanlış.';
-        return;
-      }
+    authSubmit.disabled = true;
+    authSubmit.textContent = 'Bekle...';
+    try {
+      const data = await api(authMode === 'register' ? '/api/register' : '/api/login', {
+        method: 'POST',
+        body: { username: name, password: pass },
+        auth: false,
+      });
+      token = data.token;
+      store.set(TOKEN_KEY, token);
+      profile = data.user;
+      $('password').value = '';
+      enterMenu();
+    } catch (err) {
+      authError.textContent = err.message;
+    } finally {
+      authSubmit.disabled = false;
+      authSubmit.textContent = authMode === 'login' ? 'Giriş Yap' : 'Kayıt Ol';
     }
-
-    currentUser = name;
-    store.set(SESSION_KEY, name);
-    $('password').value = '';
-    enterMenu();
   });
 
-  $('logoutBtn').addEventListener('click', () => {
-    currentUser = null;
-    store.set(SESSION_KEY, '');
+  $('logoutBtn').addEventListener('click', async () => {
+    try { await api('/api/logout', { method: 'POST' }); } catch (e) { /* yoksay */ }
+    token = '';
+    profile = null;
+    store.set(TOKEN_KEY, '');
     show('auth');
   });
 
   /* ============================================================
-     Menu & profil
+     Menü & profil
      ============================================================ */
-  let faceImg = null; // yüklenen fotoğraf (Image)
-
-  function currentData() { return users[currentUser] || null; }
+  let faceImg = null;
 
   function renderFace() {
-    const data = currentData();
-    const src = data && data.face;
+    const src = profile && profile.face;
     const preview = $('facePreview');
     const avatar = $('userAvatar');
-
     if (src) {
       preview.innerHTML = '<img src="' + src + '" alt="yüz" />';
       avatar.innerHTML = '<img src="' + src + '" alt="yüz" />';
@@ -131,50 +135,81 @@
   }
 
   function updateStatsUI() {
-    const d = currentData();
-    if (!d) return;
-    $('bestScore').textContent = d.best;
-    $('totalDodged').textContent = d.totalDodged;
-    $('gamesPlayed').textContent = d.games;
+    if (!profile) return;
+    $('bestScore').textContent = profile.best;
+    $('totalDodged').textContent = profile.totalDodged;
+    $('gamesPlayed').textContent = profile.games;
   }
 
   function enterMenu() {
-    if (!currentUser || !users[currentUser]) { show('auth'); return; }
-    $('userNameText').textContent = currentUser;
+    if (!profile) { show('auth'); return; }
+    $('userNameText').textContent = profile.username;
+    $('adminBtn').hidden = !profile.isAdmin;
     renderFace();
     updateStatsUI();
     show('menu');
   }
 
-  // Fotoğraf yükleme: küçültüp data URL olarak sakla (localStorage dostu)
+  // Fotoğraf yükle: küçült -> sunucuya kaydet
   $('photoInput').addEventListener('change', (e) => {
     const file = e.target.files && e.target.files[0];
-    const d = currentData();
-    if (!file || !d) return;
+    if (!file || !profile) return;
     if (!file.type.startsWith('image/')) return;
 
     const reader = new FileReader();
     reader.onload = (ev) => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         const size = 160;
         const c = document.createElement('canvas');
         c.width = c.height = size;
-        const ctx = c.getContext('2d');
-        // kare kırpma
+        const cx = c.getContext('2d');
         const side = Math.min(img.width, img.height);
-        const sx = (img.width - side) / 2;
-        const sy = (img.height - side) / 2;
-        ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
-        d.face = c.toDataURL('image/jpeg', 0.82);
-        saveUsers(users);
-        renderFace();
+        cx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+        const face = c.toDataURL('image/jpeg', 0.82);
+        try {
+          const data = await api('/api/face', { method: 'POST', body: { face } });
+          profile.face = data.face;
+          renderFace();
+        } catch (err) {
+          alert(err.message);
+        }
       };
       img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   });
+
+  /* ============================================================
+     Admin paneli
+     ============================================================ */
+  $('adminBtn').addEventListener('click', async () => {
+    const list = $('adminList');
+    list.innerHTML = '<p class="hint">Yükleniyor...</p>';
+    show('admin');
+    try {
+      const data = await api('/api/admin/users');
+      list.innerHTML = '';
+      data.users.forEach((u, i) => {
+        const row = document.createElement('div');
+        row.className = 'admin-row';
+        const rank = document.createElement('span');
+        rank.className = 'admin-rank';
+        rank.textContent = '#' + (i + 1);
+        const name = document.createElement('strong');
+        name.textContent = u.username + (u.username === 'admin' ? ' 🛡️' : '');
+        const stats = document.createElement('span');
+        stats.className = 'admin-stats';
+        stats.textContent = u.best + ' kaçış · ' + u.games + ' oyun';
+        row.append(rank, name, stats);
+        list.appendChild(row);
+      });
+    } catch (err) {
+      list.textContent = err.message;
+    }
+  });
+  $('adminBackBtn').addEventListener('click', enterMenu);
 
   /* ============================================================
      Oyun motoru
@@ -184,8 +219,7 @@
   let W = 800, H = 400, dpr = 1;
 
   function resizeCanvas() {
-    const wrap = $('canvasWrap');
-    const r = wrap.getBoundingClientRect();
+    const r = $('canvasWrap').getBoundingClientRect();
     W = Math.max(320, r.width);
     H = Math.max(220, r.height);
     dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -254,19 +288,24 @@
 
   function gameOver() {
     stopGame();
-    const d = currentData();
-    if (d) {
-      d.games += 1;
-      d.totalDodged += state.score;
-      const isBest = state.score > d.best;
-      d.best = Math.max(d.best, state.score);
-      saveUsers(users);
-      $('newBest').hidden = !isBest;
-    }
-    $('finalScore').textContent = state.score;
+    const score = state.score;
+    $('finalScore').textContent = score;
     $('overText').textContent =
-      'Bugün ' + state.score + ' yarraktan kaçtın ama en sonunda yarrağı yedin!';
+      'Bugün ' + score + ' yarraktan kaçtın ama en sonunda yarrağı yedin!';
+    $('newBest').hidden = true;
     show('over');
+
+    // Skoru sunucuya kaydet
+    api('/api/score', { method: 'POST', body: { score } })
+      .then((data) => {
+        profile.best = data.best;
+        profile.games = data.games;
+        profile.totalDodged = data.totalDodged;
+        $('newBest').hidden = !data.isBest;
+      })
+      .catch((err) => {
+        $('overText').textContent += ' (Skor kaydedilemedi: ' + err.message + ')';
+      });
   }
 
   function togglePause(force) {
@@ -301,16 +340,13 @@
     const cx = charX();
     const es = eggSize();
 
-    // Fizik
     s.vy += GRAVITY * dt;
     s.top += s.vy * dt;
     if (s.top >= g - ch) { s.top = g - ch; s.vy = 0; s.jumping = false; }
 
-    // Zorluk artışı
     s.speed = Math.min(620, 300 + s.score * 6);
     s.distance += s.speed * dt;
 
-    // Engel üretimi
     s.spawnTimer -= dt;
     if (s.spawnTimer <= 0) {
       const minGap = Math.max(0.55, 1.25 - s.score * 0.018);
@@ -318,19 +354,16 @@
       s.eggs.push({ x: W + 20, counted: false });
     }
 
-    // Hareket & çarpışma
     for (let i = s.eggs.length - 1; i >= 0; i--) {
       const egg = s.eggs[i];
       egg.x -= s.speed * dt;
 
-      // Geçti say
       if (!egg.counted && egg.x + es < cx) {
         egg.counted = true;
         s.score++;
         $('liveScore').textContent = s.score;
       }
 
-      // Çarpışma: yatay örtüşme ve karakter yeterince alçaksa
       const charBottom = s.top + ch;
       const eggTop = g - es * 0.95;
       if (egg.x < cx + cw * 0.92 && egg.x + es * 0.9 > cx + cw * 0.08) {
@@ -357,7 +390,6 @@
     const cw = charW(), ch = charH(), cx = charX();
     const es = eggSize();
 
-    // Gökyüzü
     const sky = ctx.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, '#3b0d57');
     sky.addColorStop(0.7, '#6d28d9');
@@ -365,13 +397,11 @@
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, W, H);
 
-    // Ay / dekor
     ctx.fillStyle = 'rgba(255,255,255,0.12)';
     ctx.beginPath();
     ctx.arc(W * 0.78, H * 0.2, Math.min(W, H) * 0.09, 0, Math.PI * 2);
     ctx.fill();
 
-    // Yol
     ctx.fillStyle = '#1c0a2a';
     ctx.fillRect(0, g, W, H - g);
     ctx.fillStyle = '#a855f7';
@@ -383,14 +413,10 @@
       ctx.fillRect(x, g + (H - g) * 0.55, dash, 3);
     }
 
-    // Engel: patlıcan
     ctx.font = es + 'px sans-serif';
     ctx.textBaseline = 'alphabetic';
-    for (const egg of s.eggs) {
-      ctx.fillText('🍆', egg.x, g - 2);
-    }
+    for (const egg of s.eggs) ctx.fillText('🍆', egg.x, g - 2);
 
-    // Karakter
     drawRunner(s.top, cw, ch, cx, g);
   }
 
@@ -400,7 +426,7 @@
     const headCy = top + headR + 2;
     const bodyTop = headCy + headR * 0.75;
     const bodyBottom = top + h * 0.78;
-    const swing = s_running() ? Math.sin(animTime * 16) : 0;
+    const swing = running && !paused ? Math.sin(animTime * 16) : 0;
     const air = state.jumping;
 
     ctx.save();
@@ -408,7 +434,6 @@
     ctx.lineWidth = Math.max(4, w * 0.11);
     ctx.lineCap = 'round';
 
-    // Bacaklar (havada bacaklar içeri çekilir)
     const legLen = (g - bodyBottom);
     const footY = air ? bodyBottom + legLen * 0.55 : g - 2;
     ctx.beginPath();
@@ -418,7 +443,6 @@
     ctx.lineTo(cx + w * 0.1 + (air ? w * 0.18 : -swing * w * 0.22), footY);
     ctx.stroke();
 
-    // Kollar
     ctx.strokeStyle = '#f1c27d';
     ctx.lineWidth = Math.max(3, w * 0.08);
     ctx.beginPath();
@@ -428,7 +452,6 @@
     ctx.lineTo(cx + w * 0.42, bodyTop + h * 0.22 + (air ? -6 : swing * w * 0.18));
     ctx.stroke();
 
-    // Gövde
     ctx.fillStyle = '#22d3ee';
     roundRect(x + w * 0.18, bodyTop, w * 0.64, bodyBottom - bodyTop, w * 0.18);
     ctx.fill();
@@ -436,7 +459,6 @@
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Kafa
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, headCy, headR, 0, Math.PI * 2);
@@ -455,8 +477,6 @@
     ctx.restore();
     ctx.restore();
   }
-
-  function s_running() { return running && !paused; }
 
   /* ============================================================
      Input
@@ -482,8 +502,18 @@
   });
 
   /* ============================================================
-     Başlangıç
+     Başlangıç: kayıtlı oturum varsa sunucudan profili al
      ============================================================ */
-  if (currentUser && users[currentUser]) enterMenu();
-  else show('auth');
+  (async () => {
+    if (!token) { show('auth'); return; }
+    try {
+      const data = await api('/api/me');
+      profile = data.user;
+      enterMenu();
+    } catch (e) {
+      token = '';
+      store.set(TOKEN_KEY, '');
+      show('auth');
+    }
+  })();
 })();

@@ -1,0 +1,15 @@
+{
+  "name": "yedigimiz-yarraklar-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "yedigimiz-yarraklar-db",
+      "database_id": "99aba97c-5c7b-49ad-a194-290dfed72080"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
