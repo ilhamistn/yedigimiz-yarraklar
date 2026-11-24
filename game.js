@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 20;
+  const APP_VERSION = 21;
 
   const ROASTS = [
     'Sikim hıyar desem tuzla koşarsın.',
@@ -13,6 +13,8 @@
     'Elin sikini görmedin ve kendininkini piyade tüfeği sandın işte şimdi yarrağı yedin.',
     'Fakirin karnı doyunca siki kalkarmış.',
     'Nenen pekmez kaynattı deden sikini oynattı.',
+    'Senin gözüne inen perdenin kornişine sokayım.',
+    'Garibanın siki kalktımı, amın önüne duvar örülürmüş.',
   ];
 
   const STORY_LEVELS = [
