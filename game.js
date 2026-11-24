@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 17;
+  const APP_VERSION = 18;
 
   const ROASTS = [
     'Sikim hıyar desem tuzla koşarsın.',
@@ -960,19 +960,24 @@
       }
     }
 
-    // ---- Arenadaki diğer oyuncuların karakterleri ----
+    // ---- Arenadaki diğer oyuncular: hepsi ekranda, yan yana ----
     if (currentMode === 'arena' && arenaPlayers.length) {
       const firstJoin = Math.min.apply(null, arenaPlayers.map((p) => p.joinIndex || 0));
+      const others = arenaPlayers
+        .filter((p) => !profile || p.name !== profile.username)
+        .sort((a, b) => {
+          const sa = (a.score || 0) + ((a.joinIndex || 0) === firstJoin ? 2 : 0);
+          const sb = (b.score || 0) + ((b.joinIndex || 0) === firstJoin ? 2 : 0);
+          return sb - sa;
+        });
       const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#ec4899'];
-      let gi = 0;
-      arenaPlayers.forEach((p) => {
-        if (profile && p.name === profile.username) return;
-        const diff = (p.score || 0) - s.score;
-        let gx = cx + diff * es * 2.2;
-        if ((p.joinIndex || 0) === firstJoin) gx += FIRST_HEAD_START_SEC * s.speed;
-        gx = Math.max(-30, Math.min(W - 30, gx));
-        drawGhost(gx, g - ch * 0.62, arenaFaceImgs[p.name], p.name, colors[gi % colors.length]);
-        gi++;
+      const ghostW = charW() * 0.62;
+      const laneStart = W * 0.46;
+      const laneEnd = W - ghostW * 0.7 - 14;
+      others.forEach((p, i) => {
+        const t = others.length === 1 ? 0.5 : i / (others.length - 1);
+        const centerX = laneStart + (laneEnd - laneStart) * t;
+        drawGhost(centerX - ghostW * 0.3, g - ch * 0.62, arenaFaceImgs[p.name], p.name, colors[i % colors.length]);
       });
     }
 
@@ -1068,12 +1073,13 @@
     const headR = w * 0.3;
     const headX = cx + lean * 1.2;
     const headCy = y + headR + h * 0.02 - bob * 0.4;
-    const hipY = y + h * 0.52;
-    const shoulderY = y + h * 0.3 + lean * 0.2;
+    // İnsan oranları: kalça gövdenin biraz üstünde, bacaklar toplam boyun yarısı
+    const hipY = y + h * 0.46;
+    const shoulderY = y + h * 0.28 + lean * 0.2;
     const legLen = g - hipY;
-    const thigh = legLen * 0.53;
-    const shin = legLen * 0.53;
-    const stride = w * 0.7;
+    const thigh = legLen * 0.52;
+    const shin = legLen * 0.52;
+    const stride = legLen * 0.28;
 
     // Yer gölgesi
     ctx.save();
@@ -1109,40 +1115,47 @@
     if (air) ctx.rotate(state.vy < 0 ? -0.1 : 0.1);
     ctx.translate(-cx, -g);
 
-    // Bacaklar: ayak yörüngesi + IK ile diz bükülmesi
+    // Bacaklar: arkadaki bacak önce çizilir (derinlik), IK ile diz öne bükülür
     for (const side of [-1, 1]) {
       const p = phase + (side === -1 ? 0 : Math.PI);
       const sw = Math.sin(p), cw = Math.cos(p);
       const stance = cw <= 0;
-      const hipX = cx + side * w * 0.11;
-      const footX = hipX + sw * stride * (air ? 0.65 : 1);
+      const far = side === -1;
+      const hipX = cx + side * w * 0.1;
+      const footX = hipX + sw * stride * (air ? 0.7 : 1);
       const footY = air
-        ? hipY + legLen * 0.45 - Math.max(0, cw) * h * 0.1
-        : (g - 2) - (stance ? 0 : cw * h * 0.2);
+        ? hipY + legLen * 0.62 - Math.max(0, cw) * h * 0.08
+        : (g - 2) - (stance ? 0 : cw * h * 0.16);
       const knee = elbowPoint(hipX, hipY, footX, footY, thigh, shin, -1);
 
-      ctx.strokeStyle = '#1e3a8a';
-      ctx.lineWidth = Math.max(5, w * 0.17);
+      ctx.save();
+      if (far) ctx.globalAlpha = 0.72;
+
+      // Uyluk (pantolon)
+      ctx.strokeStyle = far ? '#172554' : '#1e3a8a';
+      ctx.lineWidth = Math.max(5, w * 0.15);
       ctx.beginPath();
       ctx.moveTo(hipX, hipY);
       ctx.lineTo(knee.x, knee.y);
       ctx.stroke();
 
-      ctx.strokeStyle = '#f1c27d';
-      ctx.lineWidth = Math.max(4, w * 0.125);
+      // Baldır
+      ctx.strokeStyle = far ? '#d9a566' : '#f1c27d';
+      ctx.lineWidth = Math.max(4, w * 0.115);
       ctx.beginPath();
       ctx.moveTo(knee.x, knee.y);
       ctx.lineTo(footX, footY);
       ctx.stroke();
 
-      // Ayakkabı: yere değerken topuktan parmağa yuvarlanır
+      // Ayakkabı: adım yönüne göre hafif dönüş
       ctx.save();
       ctx.translate(footX, footY);
-      ctx.rotate(stance ? (sw < -0.3 ? -0.35 : 0.12) : -0.28);
+      ctx.rotate(sw * 0.22);
       ctx.fillStyle = '#111827';
       ctx.beginPath();
-      ctx.ellipse(w * 0.05, 0, w * 0.17, Math.max(2, h * 0.03), 0, 0, Math.PI * 2);
+      ctx.ellipse(w * 0.04, 0, w * 0.14, Math.max(2, h * 0.028), 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
       ctx.restore();
     }
 
