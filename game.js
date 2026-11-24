@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 35;
+  const APP_VERSION = 36;
 
   const LEADER_TITLES = [
     'Obsidyen Yarrak Bükücü',
@@ -522,6 +522,36 @@
     $('coinBalance').textContent = (profile && profile.coins) || 0;
   }
 
+  function renderCape() {
+    const owned = !!(profile && profile.capeOwned);
+    const active = !!(profile && profile.capeActive);
+    $('capeBtn').textContent = !owned ? 'Satın Al' : active ? 'Çıkar' : 'Giy';
+    $('capeDesc').textContent = !owned
+      ? 'Karakterinin arkasında dalgalanan pelerin · 500 💰'
+      : active ? '🛡️ Pelerin giyili — koşarken dalgalanıyor.' : 'Pelerin dolabında bekliyor.';
+  }
+
+  $('capeBtn').addEventListener('click', async () => {
+    const action = profile && profile.capeOwned ? 'toggle' : 'buy';
+    const btn = $('capeBtn');
+    btn.disabled = true;
+    try {
+      const data = await api('/api/cape', { method: 'POST', body: { action } });
+      profile.capeOwned = data.owned;
+      profile.capeActive = data.active;
+      profile.coins = data.coins;
+      $('capeStatus').textContent = action === 'buy'
+        ? '✓ Pelerin satın alındı ve giyildi! (-500 💰)'
+        : data.active ? '✓ Pelerin giyildi.' : '✓ Pelerin çıkarıldı.';
+      renderCoins();
+      renderCape();
+    } catch (err) {
+      $('capeStatus').textContent = err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   function renderSwatches() {
     const skin = (profile && profile.skinTone) || 0;
     const shoe = (profile && profile.shoeColor) || 0;
@@ -577,7 +607,9 @@
 
   function openAppearance() {
     $('appearanceStatus').textContent = '';
+    $('capeStatus').textContent = '';
     renderSwatches();
+    renderCape();
     show('appearance');
   }
 
@@ -721,6 +753,9 @@
       eggs: [],
       floaters: [],
       particles: [],
+      flyTimer: 5 + Math.random() * 8,
+      flyDone: false,
+      fly: null,
       spawnDist: W * 0.35 + Math.random() * W * 0.2,
       score: 0,
       distance: 0,
@@ -1037,6 +1072,22 @@
       p.life -= dt * 2;
       if (p.life <= 0) s.particles.splice(i, 1);
     }
+
+    // Her oyunda bir kez, belirsiz bir anda tepeden geçen patlıcan
+    if (!s.flyDone) {
+      s.flyTimer -= dt;
+      if (s.flyTimer <= 0) {
+        s.flyDone = true;
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        s.fly = { x: dir === 1 ? -es * 2 : W + es * 2, dir };
+      }
+    }
+    if (s.fly) {
+      s.fly.x += s.speed * 1.9 * s.fly.dir * dt;
+      // Oyuncu zıplasa bile kafasının üstünde kalır
+      s.fly.y = Math.min(g - ch, s.top) - es * 0.85 - 6;
+      if (s.fly.x > W + es * 3 || s.fly.x < -es * 3) s.fly = null;
+    }
   }
 
   /* ---------- Çizim ---------- */
@@ -1189,6 +1240,18 @@
       }
     }
 
+    // Kafanın üstünden geçen patlıcan (hız iziyle)
+    if (s.fly) {
+      ctx.save();
+      for (let t = 1; t <= 3; t++) {
+        ctx.globalAlpha = 0.28 / t;
+        drawEmoji('🍆', es * 0.9, s.fly.x - s.fly.dir * t * es * 0.55, s.fly.y);
+      }
+      ctx.globalAlpha = 1;
+      drawEmoji('🍆', es * 1.05, s.fly.x, s.fly.y);
+      ctx.restore();
+    }
+
     // ---- Arenadaki diğer oyuncular: aynı karakter, hepsi ekranda ----
     if (currentMode === 'arena' && arenaPlayers.length) {
       const firstJoin = Math.min.apply(null, arenaPlayers.map((p) => p.joinIndex || 0));
@@ -1215,6 +1278,7 @@
           face: arenaFaceImgs[p.name] || null,
           skin: arenaLooks[p.name] && arenaLooks[p.name].skin,
           shoe: arenaLooks[p.name] && arenaLooks[p.name].shoe,
+          cape: arenaLooks[p.name] && arenaLooks[p.name].cape,
           squash: 0,
           stretch: 0,
         });
@@ -1332,6 +1396,31 @@
     ctx.scale(1 + sq * 0.2 - st * 0.1, 1 - sq * 0.22 + st * 0.14);
     if (air) ctx.rotate(vyNow < 0 ? -0.06 : 0.06);
     ctx.translate(-cx, -g);
+
+    // Pelerin: koşarken arkada dalgalanır
+    const capeOn = o.cape !== undefined ? o.cape : !!(profile && profile.capeActive);
+    if (capeOn) {
+      const wave = Math.sin(phase + 0.7) * (moving ? 1 : 0.25);
+      const sx = cx - w * 0.16;
+      const sy = shoulderY + h * 0.02;
+      ctx.save();
+      const cg = ctx.createLinearGradient(sx - w, sy, sx, sy + h * 0.45);
+      cg.addColorStop(0, '#7f1d1d');
+      cg.addColorStop(1, '#dc2626');
+      ctx.fillStyle = cg;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.quadraticCurveTo(sx - w * 0.5, sy + h * 0.04 + wave * h * 0.05,
+        sx - w * 0.95, sy + h * 0.12 + wave * h * 0.08);
+      ctx.lineTo(sx - w * 0.78, sy + h * 0.4 + wave * h * 0.05);
+      ctx.quadraticCurveTo(sx - w * 0.42, sy + h * 0.34, sx - w * 0.08, sy + h * 0.44);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = Math.max(1.5, w * 0.025);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     function drawLeg(side, far) {
       const p = phase + (side === -1 ? 0 : Math.PI);
@@ -1544,6 +1633,7 @@
           type: 'appearance',
           skinTone: (profile && profile.skinTone) || 0,
           shoeColor: (profile && profile.shoeColor) || 0,
+          cape: !!(profile && profile.capeActive),
         });
         sendArena({ type: 'lobby' });
         reportArenaScore(state ? state.score : 0);
@@ -1633,6 +1723,7 @@
       arenaLooks[p.name] = {
         skin: SKINS[Math.min(5, p.skinTone || 0)] || SKINS[2],
         shoe: SHOES[Math.min(5, p.shoeColor || 0)] || SHOES[0],
+        cape: !!p.cape,
       };
     });
     const firstJoin = Math.min.apply(null, arenaPlayers.map((p) => p.joinIndex || 0));

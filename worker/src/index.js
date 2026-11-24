@@ -44,6 +44,8 @@ function publicUser(row) {
     donuts: row.donuts || 0,
     ownedSkins: row.owned_skins || 1,
     ownedShoes: row.owned_shoes || 1,
+    capeOwned: row.cape_owned === 1,
+    capeActive: row.cape_active === 1,
     approved: row.approved === 1,
     storyLevel: row.story_level || 1,
     skinTone: row.skin_tone || 0,
@@ -246,6 +248,38 @@ export default {
       return json({ ok: true, token });
     }
 
+    // ---- Market: pelerin satın al / tak ----
+    if (path === '/api/cape' && method === 'POST') {
+      const user = await authenticate(request, env);
+      if (!user) return fail('Giriş yapmalısın.', 401);
+      const body = await readBody(request);
+      const action = body && body.action;
+
+      if (action === 'buy') {
+        if (user.cape_owned === 1) {
+          await env.DB.prepare('UPDATE users SET cape_active = 1 WHERE id = ?').bind(user.id).run();
+          return json({ ok: true, owned: true, active: true, coins: user.coins || 0 });
+        }
+        const price = 500;
+        if ((user.coins || 0) < price) {
+          return fail('Yetersiz para. Pelerin ' + price + ' 💰.', 402);
+        }
+        await env.DB.prepare(
+          'UPDATE users SET cape_owned = 1, cape_active = 1, coins = coins - ? WHERE id = ?'
+        ).bind(price, user.id).run();
+        return json({ ok: true, owned: true, active: true, coins: (user.coins || 0) - price, spent: price });
+      }
+
+      if (action === 'toggle') {
+        if (user.cape_owned !== 1) return fail('Pelerin satın alınmadı.', 403);
+        const active = user.cape_active === 1 ? 0 : 1;
+        await env.DB.prepare('UPDATE users SET cape_active = ? WHERE id = ?').bind(active, user.id).run();
+        return json({ ok: true, owned: true, active: active === 1, coins: user.coins || 0 });
+      }
+
+      return fail('Geçersiz işlem.');
+    }
+
     // ---- Donut yakalama: para kazandır ----
     if (path === '/api/donut' && method === 'POST') {
       const user = await authenticate(request, env);
@@ -425,7 +459,7 @@ export class Arena {
     const entry = {
       ws: server, name, uid, score: 0, face: '',
       ready: false, playing: false, joinIndex: this.nextJoin++,
-      skinTone: 2, shoeColor: 0,
+      skinTone: 2, shoeColor: 0, cape: false,
     };
     this.sessions.set(server, entry);
     server.accept();
@@ -443,6 +477,7 @@ export class Arena {
         } else if (msg.type === 'appearance') {
           if (Number.isInteger(msg.skinTone)) entry.skinTone = Math.max(0, Math.min(5, msg.skinTone));
           if (Number.isInteger(msg.shoeColor)) entry.shoeColor = Math.max(0, Math.min(5, msg.shoeColor));
+          if (typeof msg.cape === 'boolean') entry.cape = msg.cape;
         } else if (msg.type === 'ready') {
           if (this.phase === 'running') return;
           if (!msg.ready && this.phase === 'starting') { this.cancelStart(); return; }
@@ -504,6 +539,7 @@ export class Arena {
         joinIndex: s.joinIndex,
         skinTone: s.skinTone,
         shoeColor: s.shoeColor,
+        cape: s.cape,
       }));
   }
 
