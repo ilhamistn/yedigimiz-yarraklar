@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 19;
+  const APP_VERSION = 20;
 
   const ROASTS = [
     'Sikim hıyar desem tuzla koşarsın.',
@@ -1111,7 +1111,7 @@
     const st = state.jumpStretch || 0;
     ctx.translate(cx, g);
     ctx.scale(1 + sq * 0.2 - st * 0.1, 1 - sq * 0.22 + st * 0.14);
-    if (air) ctx.rotate(state.vy < 0 ? -0.1 : 0.1);
+    if (air) ctx.rotate(state.vy < 0 ? -0.06 : 0.06);
     ctx.translate(-cx, -g);
 
     function drawLeg(side, far) {
@@ -1119,13 +1119,29 @@
       const sw = Math.sin(p), cw = Math.cos(p);
       const stance = cw <= 0;
       const hipX = cx + side * w * 0.12;
-      const footX = hipX + sw * stride * (air ? 0.7 : 1);
+      // Havada bacak neredeyse tam uzatılır: diz gereğinden fazla kırılmaz
+      const footX = hipX + (air ? side * w * 0.06 + sw * stride * 0.3 : sw * stride);
       const footY = air
-        ? hipY + legLen * 0.58 - Math.max(0, cw) * h * 0.07
+        ? hipY + legLen * 0.93 - Math.max(0, cw) * h * 0.03
         : (g - 3) - (stance ? 0 : cw * h * 0.14);
       const knee = elbowPoint(hipX, hipY, footX, footY, thigh, shin, -1);
       ctx.save();
       if (far) ctx.globalAlpha = 0.82;
+
+      // Kalkış anında dizlerde kısa ışık patlaması
+      if (st > 0.05) {
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, st) * (far ? 0.5 : 0.85);
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath();
+        ctx.arc(knee.x, knee.y, w * (0.05 + st * 0.05), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(knee.x, knee.y, w * 0.02, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
 
       // Şort (uyluğu kapatır)
       ctx.strokeStyle = far ? '#0b5d5a' : '#0f766e';
