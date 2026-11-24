@@ -5,7 +5,40 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 7;
+  const APP_VERSION = 8;
+
+  const STORY_LEVELS = [
+    {
+      title: '1. Bahçe Nöbeti',
+      desc: 'Sabah güneşiyle birlikte ilk patlıcanlar bahçeye girdi. Kaç, yoksa yarrak yiyeceksin.',
+      endText: 'Bahçeyi temizledin. Ama ufukta daha büyük bir sürü var...',
+      target: 5, speed: 250, gap: 1.25, variance: 0.6, double: false, triple: false,
+    },
+    {
+      title: '2. Patlıcan Sürüsü',
+      desc: 'Artık ikişer ikişer geliyorlar. Arkadaşını da atlamayı unutma.',
+      endText: 'Sürüyü geçtin. Şimdi işler karışıyor...',
+      target: 10, speed: 310, gap: 1.1, variance: 0.5, double: true, triple: false,
+    },
+    {
+      title: '3. Gece Koşusu',
+      desc: 'Karanlıkta patlıcanlar daha hızlı. Gözünü açık tut.',
+      endText: 'Geceyi atlattın. Tarla seni bekliyor.',
+      target: 15, speed: 370, gap: 0.95, variance: 0.45, double: true, triple: false,
+    },
+    {
+      title: '4. Kızıl Tarla',
+      desc: 'Üçlü dalgalar başladı. Tek bir hata her şeyi bitirir.',
+      endText: 'Tarlayı geçtin. Son mücadele yakın.',
+      target: 22, speed: 430, gap: 0.82, variance: 0.4, double: true, triple: true,
+    },
+    {
+      title: '5. Son Yarrak',
+      desc: 'Final. Hızlarına hız katıldı. 30 yarraktan kaç ve hikayeyi bitir.',
+      endText: 'Efsane tamamlandı. Artık hiçbir patlıcan sana yetişemez!',
+      target: 30, speed: 480, gap: 0.7, variance: 0.35, double: true, triple: true,
+    },
+  ];
   const TOKEN_KEY = 'yy_token_v1';
   const mem = {};
 
@@ -51,6 +84,10 @@
     admin: $('adminScreen'),
     leader: $('leaderScreen'),
     settings: $('settingsScreen'),
+    story: $('storyScreen'),
+    storyResult: $('storyResultScreen'),
+    arena: $('arenaScreen'),
+    sandbox: $('sandboxScreen'),
   };
 
   function show(name) {
@@ -152,6 +189,7 @@
   }
 
   function enterMenu() {
+    closeArena();
     if (!profile) { show('auth'); return; }
     $('userNameText').textContent = profile.username;
     $('adminBtn').hidden = !profile.isAdmin;
@@ -418,6 +456,15 @@
   let animTime = 0;
   let running = false;
   let paused = false;
+  let currentMode = 'classic';
+  let modeConfig = null;
+  let arenaWs = null;
+  const SANDBOX_KEY = 'yy_sandbox_v1';
+  let sandboxSettings = { speed: 300, gap: 1.0, jump: 780, immortal: false };
+  try {
+    const saved = JSON.parse(store.get(SANDBOX_KEY));
+    if (saved) sandboxSettings = { ...sandboxSettings, ...saved };
+  } catch (e) { /* bozuk kayıt */ }
 
   function freshState() {
     return {
@@ -432,11 +479,16 @@
     };
   }
 
-  function startGame() {
+  function startGame(mode = 'classic', config = null) {
+    currentMode = mode;
+    modeConfig = config;
     state = freshState();
+    if (mode === 'sandbox') state.spawnTimer = 0.3 + Math.random() * Math.min(0.6, sandboxSettings.gap);
     paused = false;
     $('pauseOverlay').classList.remove('show');
     $('liveScore').textContent = '0';
+    $('arenaHud').hidden = mode !== 'arena';
+    if (mode === 'arena') connectArena();
     show('game');
     resizeCanvas();
     if (rafId) cancelAnimationFrame(rafId);
@@ -454,7 +506,7 @@
   function jump() {
     if (!running || paused || !state) return;
     if (!state.jumping) {
-      state.vy = -JUMP_V;
+      state.vy = -(currentMode === 'sandbox' ? sandboxSettings.jump : JUMP_V);
       state.jumping = true;
     }
   }
@@ -462,6 +514,7 @@
   function gameOver() {
     stopGame();
     const score = state.score;
+    if (currentMode === 'arena') reportArenaScore(score);
     $('finalScore').textContent = score;
     $('overText').textContent =
       'Bugün ' + score + ' yarraktan kaçtın ama en sonunda yarrağı yedin!';
@@ -517,7 +570,9 @@
     s.top += s.vy * dt;
     if (s.top >= g - ch) { s.top = g - ch; s.vy = 0; s.jumping = false; }
 
-    s.speed = Math.min(620, 300 + s.score * 6);
+    if (currentMode === 'sandbox') s.speed = sandboxSettings.speed;
+    else if (currentMode === 'story' && modeConfig) s.speed = Math.min(700, modeConfig.speed + s.score * 4);
+    else s.speed = Math.min(620, 300 + s.score * 6);
     s.distance += s.speed * dt;
 
     s.spawnTimer -= dt;
@@ -525,16 +580,31 @@
       // Rastgele dalga: bazen tek, bazen 2-3 patlıcan arka arkaya
       const r = Math.random();
       let count = 1;
-      if (s.score > 4 && r < 0.25) count = 2;
-      if (s.score > 12 && r < 0.08) count = 3;
+      if (currentMode === 'story' && modeConfig) {
+        if (modeConfig.triple && r < 0.12) count = 3;
+        else if (modeConfig.double && r < 0.3) count = 2;
+      } else if (currentMode !== 'sandbox') {
+        if (s.score > 4 && r < 0.25) count = 2;
+        if (s.score > 12 && r < 0.08) count = 3;
+      }
 
       const spacing = es * (1.7 + Math.random() * 0.7);
       for (let i = 0; i < count; i++) {
         s.eggs.push({ x: W + 20 + i * (spacing + Math.random() * 25), counted: false });
       }
 
-      const minGap = Math.max(0.4, 1.4 - s.score * 0.018);
-      s.spawnTimer = minGap + Math.random() * (count > 1 ? 1.1 : 0.75);
+      let minGap, variance;
+      if (currentMode === 'sandbox') {
+        minGap = sandboxSettings.gap;
+        variance = 0.2;
+      } else if (currentMode === 'story' && modeConfig) {
+        minGap = Math.max(0.45, modeConfig.gap - s.score * 0.008);
+        variance = modeConfig.variance;
+      } else {
+        minGap = Math.max(0.4, 1.4 - s.score * 0.018);
+        variance = count > 1 ? 1.1 : 0.75;
+      }
+      s.spawnTimer = minGap + Math.random() * variance;
     }
 
     for (let i = s.eggs.length - 1; i >= 0; i--) {
@@ -545,12 +615,19 @@
         egg.counted = true;
         s.score++;
         $('liveScore').textContent = s.score;
+        if (currentMode === 'arena') reportArenaScore(s.score);
+        if (currentMode === 'story' && modeConfig && s.score >= modeConfig.target) {
+          completeStory();
+          return;
+        }
       }
 
       const charBottom = s.top + ch;
       const eggTop = g - es * 0.95;
       if (egg.x < cx + cw * 0.92 && egg.x + es * 0.9 > cx + cw * 0.08) {
-        if (charBottom > eggTop + 4) { gameOver(); return; }
+        if (charBottom > eggTop + 4) {
+          if (!(currentMode === 'sandbox' && sandboxSettings.immortal)) { gameOver(); return; }
+        }
       }
       if (egg.x < -es - 20) s.eggs.splice(i, 1);
     }
@@ -783,11 +860,178 @@
   }
 
   /* ============================================================
+     Modlar: hikaye / canlı arena / sandbox
+     ============================================================ */
+  function completeStory() {
+    stopGame();
+    const lvl = modeConfig.level;
+    api('/api/story/complete', { method: 'POST', body: { level: lvl } })
+      .then((d) => { if (profile) profile.storyLevel = d.storyLevel; })
+      .catch(() => {});
+    const last = lvl >= STORY_LEVELS.length;
+    $('storyResultIcon').textContent = last ? '🏆' : '🎉';
+    $('storyResultTitle').textContent = last ? 'Hikaye Tamamlandı!' : 'Bölüm Tamamlandı!';
+    $('storyResultText').textContent = STORY_LEVELS[lvl - 1].endText;
+    $('storyNextBtn').hidden = last;
+    show('storyResult');
+  }
+
+  function connectArena() {
+    if (arenaWs && arenaWs.readyState <= 1) return;
+    try {
+      const url = API.replace(/^https/, 'wss') + '/ws/arena?token=' + encodeURIComponent(token);
+      arenaWs = new WebSocket(url);
+      arenaWs.onopen = () => {
+        $('arenaStatus').textContent = 'Bağlısın!';
+        if (profile && profile.face) arenaWs.send(JSON.stringify({ type: 'face', face: profile.face }));
+        reportArenaScore(state ? state.score : 0);
+      };
+      arenaWs.onmessage = (e) => {
+        try { const m = JSON.parse(e.data); if (m.type === 'arena') renderArena(m.players); } catch (err) {}
+      };
+      arenaWs.onclose = () => { arenaWs = null; $('arenaStatus').textContent = 'Bağlantı kapandı.'; };
+      arenaWs.onerror = () => { $('arenaStatus').textContent = 'Bağlantı hatası.'; };
+    } catch (e) {
+      $('arenaStatus').textContent = 'Bu tarayıcı desteklenmiyor.';
+    }
+  }
+
+  function reportArenaScore(score) {
+    if (arenaWs && arenaWs.readyState === 1) {
+      arenaWs.send(JSON.stringify({ type: 'score', score }));
+    }
+  }
+
+  function closeArena() {
+    if (arenaWs) { try { arenaWs.close(); } catch (e) {} arenaWs = null; }
+  }
+
+  function renderArena(players) {
+    const hud = $('arenaHud');
+    hud.innerHTML = '';
+    const title = document.createElement('div');
+    title.className = 'arena-hud-title';
+    title.textContent = '🌍 CANLI ARENA';
+    hud.appendChild(title);
+    players.slice(0, 6).forEach((p) => {
+      const row = document.createElement('div');
+      row.className = 'arena-hud-row';
+      if (profile && p.name === profile.username) row.classList.add('me');
+      const nm = document.createElement('span');
+      nm.textContent = (p.rank === 1 ? '🥇 ' : p.rank + '. ') + p.name;
+      const sc = document.createElement('strong');
+      sc.textContent = p.score;
+      row.append(nm, sc);
+      hud.appendChild(row);
+    });
+
+    const list = $('arenaPlayers');
+    if (list && screens.arena.classList.contains('active')) {
+      list.innerHTML = '';
+      if (!players.length) list.innerHTML = '<p class="leader-empty">Henüz kimse bağlı değil.</p>';
+      players.forEach((p) => {
+        const row = document.createElement('div');
+        row.className = 'admin-row';
+        const rank = document.createElement('span');
+        rank.className = 'admin-rank';
+        rank.textContent = '#' + p.rank;
+        const name = document.createElement('strong');
+        name.textContent = p.name + (profile && p.name === profile.username ? ' (sen)' : '');
+        const score = document.createElement('span');
+        score.className = 'admin-stats';
+        score.textContent = p.score + ' yarrak';
+        row.append(rank, name, score);
+        list.appendChild(row);
+      });
+    }
+  }
+
+  function openStory() {
+    const list = $('storyList');
+    const unlocked = profile ? profile.storyLevel : 1;
+    list.innerHTML = '';
+    STORY_LEVELS.forEach((cfg, i) => {
+      const lvl = i + 1;
+      const locked = lvl > unlocked;
+      const row = document.createElement('div');
+      row.className = 'admin-row story-row' + (locked ? ' locked' : '');
+      const num = document.createElement('span');
+      num.className = 'admin-rank';
+      num.textContent = locked ? '🔒' : lvl;
+      const info = document.createElement('div');
+      info.style.flex = '1';
+      const t = document.createElement('strong');
+      t.textContent = cfg.title;
+      const d = document.createElement('small');
+      d.className = 'story-desc';
+      d.textContent = cfg.desc + ' · Hedef: ' + cfg.target;
+      info.append(t, d);
+      const btn = document.createElement('button');
+      btn.className = 'mini-btn approve';
+      btn.textContent = locked ? 'Kilitli' : 'Oyna';
+      if (!locked) btn.addEventListener('click', () => startGame('story', { ...cfg, level: lvl }));
+      row.append(num, info, btn);
+      list.appendChild(row);
+    });
+    show('story');
+  }
+
+  function updateSandboxLabels() {
+    $('sandboxSpeedVal').textContent = $('sandboxSpeed').value;
+    $('sandboxGapVal').textContent = (Number($('sandboxGap').value) / 100).toFixed(1);
+    $('sandboxJumpVal').textContent = $('sandboxJump').value;
+  }
+
+  function openSandbox() {
+    $('sandboxSpeed').value = sandboxSettings.speed;
+    $('sandboxGap').value = Math.round(sandboxSettings.gap * 100);
+    $('sandboxJump').value = sandboxSettings.jump;
+    $('sandboxImmortal').checked = sandboxSettings.immortal;
+    updateSandboxLabels();
+    show('sandbox');
+  }
+
+  function saveSandboxSettings() {
+    sandboxSettings = {
+      speed: Number($('sandboxSpeed').value),
+      gap: Number($('sandboxGap').value) / 100,
+      jump: Number($('sandboxJump').value),
+      immortal: $('sandboxImmortal').checked,
+    };
+    store.set(SANDBOX_KEY, JSON.stringify(sandboxSettings));
+  }
+
+  /* ============================================================
      Input
      ============================================================ */
-  $('startBtn').addEventListener('click', startGame);
-  $('retryBtn').addEventListener('click', startGame);
+  $('startBtn').addEventListener('click', () => startGame());
+  $('retryBtn').addEventListener('click', () => startGame());
   $('menuBtn').addEventListener('click', enterMenu);
+
+  $('storyBtn').addEventListener('click', openStory);
+  $('storyBackBtn').addEventListener('click', enterMenu);
+  $('storyResultMenuBtn').addEventListener('click', enterMenu);
+  $('storyNextBtn').addEventListener('click', () => {
+    const next = (modeConfig ? modeConfig.level : 1) + 1;
+    const cfg = STORY_LEVELS[next - 1];
+    if (cfg) startGame('story', { ...cfg, level: next });
+    else enterMenu();
+  });
+
+  $('arenaBtn').addEventListener('click', () => {
+    $('arenaStatus').textContent = 'Bağlanıyor...';
+    connectArena();
+    show('arena');
+  });
+  $('arenaStartBtn').addEventListener('click', () => startGame('arena'));
+  $('arenaBackBtn').addEventListener('click', () => { closeArena(); enterMenu(); });
+
+  $('sandboxBtn').addEventListener('click', openSandbox);
+  $('sandboxBackBtn').addEventListener('click', enterMenu);
+  ['sandboxSpeed', 'sandboxGap', 'sandboxJump'].forEach((id) => {
+    $(id).addEventListener('input', updateSandboxLabels);
+  });
+  $('sandboxStartBtn').addEventListener('click', () => { saveSandboxSettings(); startGame('sandbox'); });
   $('jumpBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); jump(); });
   canvas.addEventListener('pointerdown', (e) => { e.preventDefault(); jump(); });
   $('pauseBtn').addEventListener('click', () => togglePause(true));

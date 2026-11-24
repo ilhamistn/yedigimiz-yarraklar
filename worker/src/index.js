@@ -40,6 +40,7 @@ function publicUser(row) {
     games: row.games,
     totalDodged: row.total_dodged,
     approved: row.approved === 1,
+    storyLevel: row.story_level || 1,
     isAdmin: row.is_admin === 1,
   };
 }
@@ -63,6 +64,15 @@ async function authenticate(request, env) {
   if (!session) return null;
   const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(session.user_id).first();
   return user || null;
+}
+
+async function authToken(env, token) {
+  if (!token) return null;
+  const session = await env.DB.prepare(
+    'SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?'
+  ).bind(token, Date.now()).first();
+  if (!session) return null;
+  return env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(session.user_id).first() || null;
 }
 
 async function adminOnly(request, env) {
@@ -100,6 +110,39 @@ export default {
 
     if (path === '/api/health' && method === 'GET') {
       return json({ ok: true });
+    }
+
+    // ---- Canlı Arena WebSocket ----
+    if (path === '/ws/arena') {
+      const url = new URL(request.url);
+      const user = await authToken(env, url.searchParams.get('token'));
+      if (!user) return fail('Oturum geçersiz.', 401);
+      if (user.approved !== 1) return fail('Hesabın onay bekliyor.', 403);
+      const stub = env.ARENA.get(env.ARENA.idFromName('global'));
+      const arenaUrl = new URL(request.url);
+      arenaUrl.searchParams.set('name', user.username);
+      arenaUrl.searchParams.set('uid', String(user.id));
+      return stub.fetch(new Request(arenaUrl.toString(), request));
+    }
+
+    // ---- Hikaye modu ilerlemesi ----
+    if (path === '/api/story' && method === 'GET') {
+      const user = await authenticate(request, env);
+      if (!user) return fail('Giriş yapmalısın.', 401);
+      return json({ storyLevel: user.story_level || 1 });
+    }
+
+    if (path === '/api/story/complete' && method === 'POST') {
+      const user = await authenticate(request, env);
+      if (!user) return fail('Giriş yapmalısın.', 401);
+      const body = await readBody(request);
+      const level = body && body.level;
+      if (!Number.isInteger(level) || level < 1 || level > 5) return fail('Geçersiz bölüm.');
+      const current = user.story_level || 1;
+      if (level !== current) return json({ ok: true, storyLevel: current });
+      const next = Math.min(5, current + 1);
+      await env.DB.prepare('UPDATE users SET story_level = ? WHERE id = ?').bind(next, user.id).run();
+      return json({ ok: true, storyLevel: next });
     }
 
     // ---- Kayıt ----
@@ -175,6 +218,27 @@ export default {
       });
     }
 
+    // ---- Şifre değiştir ----
+    if (path === '/api/password' && method === 'POST') {
+      const user = await authenticate(request, env);
+      if (!user) return fail('Giriş yapmalısın.', 401);
+      const body = await readBody(request);
+      if (!body || typeof body.current !== 'string' || !validPassword(body.next)) {
+        return fail('Yeni şifre 4-64 karakter olmalı.');
+      }
+      const currentHash = await sha256(user.salt + ':' + body.current);
+      if (currentHash !== user.pass_hash) return fail('Şu anki şifre yanlış.', 401);
+
+      const salt = randomHex(16);
+      const newHash = await sha256(salt + ':' + body.next);
+      await env.DB.prepare('UPDATE users SET salt = ?, pass_hash = ? WHERE id = ?')
+        .bind(salt, newHash, user.id).run();
+      // Eski oturumları geçersiz kıl, yeni token ver
+      await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run();
+      const token = await createSession(env, user.id);
+      return json({ ok: true, token });
+    }
+
     // ---- Profil fotoğrafı ----
     if (path === '/api/face' && method === 'POST') {
       const user = await authenticate(request, env);
@@ -230,3 +294,60 @@ export default {
     return fail('Bulunamadı.', 404);
   },
 };
+
+/* ============================================================
+   Canlı Arena - Durable Object (tek global oda)
+   ============================================================ */
+export class Arena {
+  constructor(state) {
+    this.state = state;
+    this.sessions = new Map();
+  }
+
+  async fetch(request) {
+    if (request.headers.get('Upgrade') !== 'websocket') {
+      return new Response('expected websocket', { status: 400 });
+    }
+    const url = new URL(request.url);
+    const name = (url.searchParams.get('name') || 'Oyuncu').slice(0, 20);
+    const uid = url.searchParams.get('uid') || '';
+    const [client, server] = new WebSocketPair();
+
+    const entry = { ws: server, name, uid, score: 0, face: '' };
+    this.sessions.set(server, entry);
+    server.accept();
+
+    server.addEventListener('message', (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'score' && Number.isFinite(msg.score)) {
+          entry.score = Math.max(0, Math.min(100000, Math.floor(msg.score)));
+        } else if (msg.type === 'face' && typeof msg.face === 'string') {
+          entry.face = msg.face.slice(0, 200000);
+        }
+      } catch (e) { /* geçersiz mesaj */ }
+      this.broadcast();
+    });
+
+    const close = () => { this.sessions.delete(server); this.broadcast(); };
+    server.addEventListener('close', close);
+    server.addEventListener('error', close);
+
+    server.send(JSON.stringify({ type: 'arena', you: uid, players: this.ranking() }));
+    this.broadcast();
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  ranking() {
+    return Array.from(this.sessions.values())
+      .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+      .map((s, i) => ({ rank: i + 1, name: s.name, score: s.score, face: s.face }));
+  }
+
+  broadcast() {
+    const msg = JSON.stringify({ type: 'arena', players: this.ranking() });
+    for (const s of this.sessions.values()) {
+      try { s.ws.send(msg); } catch (e) { /* kapalı soket */ }
+    }
+  }
+}

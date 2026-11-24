@@ -70,6 +70,11 @@
         </div>
 
         <button class="btn btn-primary btn-run" id="startBtn">KOŞ 🏃</button>
+        <div class="mode-grid">
+          <button class="mode-card" id="storyBtn"><span>📖</span><strong>Hikaye</strong><small>Bölümleri geç</small></button>
+          <button class="mode-card" id="arenaBtn"><span>🌍</span><strong>Canlı Arena</strong><small>Herkesle yarış</small></button>
+          <button class="mode-card" id="sandboxBtn"><span>🧪</span><strong>Sandbox</strong><small>Kuralları değiştir</small></button>
+        </div>
         <button class="btn btn-outline" id="leaderBtn" style="width:100%;margin-top:10px">🏆 Lider Tablosu</button>
         <button class="btn btn-outline" id="adminBtn" hidden style="width:100%;margin-top:10px">🛡️ Admin Paneli</button>
         <button class="btn btn-outline" id="settingsBtn" style="width:100%;margin-top:10px">⚙️ Ayarlar / Şifre Değiştir</button>
@@ -90,6 +95,7 @@
 
         <div class="canvas-wrap" id="canvasWrap">
           <canvas id="gameCanvas"></canvas>
+          <div id="arenaHud" class="arena-hud" hidden></div>
           <div class="pause-overlay" id="pauseOverlay">
             <div class="pause-box">
               <h2>Duraklatıldı</h2>
@@ -102,6 +108,61 @@
         <div class="controls">
           <button class="btn btn-jump" id="jumpBtn">ZIPLA ⤴️</button>
         </div>
+      </div>
+    </section>
+
+    <!-- ============ HİKAYE ============ -->
+    <section id="storyScreen" class="screen">
+      <div class="over-card">
+        <div class="logo-emoji">📖</div>
+        <h2 class="over-title">Hikaye Modu</h2>
+        <p class="subtitle">Her bölümü bitir, hikayeyi aç.</p>
+        <div id="storyList" class="admin-list"></div>
+        <button class="btn btn-outline" id="storyBackBtn" style="margin-top:14px">Geri Dön</button>
+      </div>
+    </section>
+
+    <!-- ============ HİKAYE SONUCU ============ -->
+    <section id="storyResultScreen" class="screen">
+      <div class="over-card">
+        <div class="logo-emoji" id="storyResultIcon">🎉</div>
+        <h2 class="over-title" id="storyResultTitle"></h2>
+        <p class="over-text" id="storyResultText"></p>
+        <div class="over-actions">
+          <button class="btn btn-primary" id="storyNextBtn">Sonraki Bölüm</button>
+          <button class="btn btn-outline" id="storyResultMenuBtn">Menü</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CANLI ARENA ============ -->
+    <section id="arenaScreen" class="screen">
+      <div class="over-card">
+        <div class="logo-emoji">🌍</div>
+        <h2 class="over-title">Canlı Arena</h2>
+        <p class="subtitle">Şu anda arenada olan oyuncular</p>
+        <div id="arenaPlayers" class="admin-list"></div>
+        <p id="arenaStatus" class="hint">Bağlanıyor...</p>
+        <button class="btn btn-primary" id="arenaStartBtn" style="margin-top:12px">Arenaya Katıl</button>
+        <button class="btn btn-outline" id="arenaBackBtn" style="margin-top:10px">Geri Dön</button>
+      </div>
+    </section>
+
+    <!-- ============ SANDBOX ============ -->
+    <section id="sandboxScreen" class="screen">
+      <div class="over-card">
+        <div class="logo-emoji">🧪</div>
+        <h2 class="over-title">Sandbox</h2>
+        <p class="subtitle">Kuralları sen belirle.</p>
+        <label>Koşu hızı: <strong id="sandboxSpeedVal">300</strong></label>
+        <input type="range" id="sandboxSpeed" min="150" max="700" value="300" />
+        <label>Patlıcan sıklığı (sn): <strong id="sandboxGapVal">1.0</strong></label>
+        <input type="range" id="sandboxGap" min="40" max="200" value="100" />
+        <label>Zıplama gücü: <strong id="sandboxJumpVal">780</strong></label>
+        <input type="range" id="sandboxJump" min="500" max="1100" value="780" />
+        <label class="check-line"><input type="checkbox" id="sandboxImmortal" /> Ölümsüz mod (çarpışma yok)</label>
+        <button class="btn btn-primary" id="sandboxStartBtn" style="margin-top:16px">Sandbox'ta Başla</button>
+        <button class="btn btn-outline" id="sandboxBackBtn" style="margin-top:10px">Geri Dön</button>
       </div>
     </section>
 

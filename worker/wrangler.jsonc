@@ -9,6 +9,14 @@
       "database_id": "99aba97c-5c7b-49ad-a194-290dfed72080"
     }
   ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "ARENA", "class_name": "Arena" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Arena"] }
+  ],
   "observability": {
     "enabled": true
   }
