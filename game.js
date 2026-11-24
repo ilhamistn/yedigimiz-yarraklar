@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 14;
+  const APP_VERSION = 15;
 
   const STORY_LEVELS = [
     {
@@ -437,7 +437,7 @@
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (state && !state.jumping) state.top = groundY() - charH();
+    if (state && state.onGround) state.top = groundY() - charH();
   }
   window.addEventListener('resize', resizeCanvas);
 
@@ -449,6 +449,9 @@
 
   const GRAVITY = 2100;
   const JUMP_V = 780;
+  const FIXED_DT = 1 / 60;
+  const JUMP_BUFFER = 0.12;
+  const COYOTE_TIME = 0.1;
 
   let state = null;
   let rafId = null;
@@ -456,6 +459,9 @@
   let animTime = 0;
   let running = false;
   let paused = false;
+  let jumpHeld = false;
+  let jumpBuffer = 0;
+  let accumulator = 0;
   let currentMode = 'classic';
   let modeConfig = null;
   let arenaWs = null;
@@ -475,11 +481,15 @@
     return {
       top: groundY() - charH(),
       vy: 0,
-      jumping: false,
+      onGround: true,
+      coyote: COYOTE_TIME,
       airJumpsUsed: 0,
+      squash: 0,
+      jumpStretch: 0,
       eggs: [],
       floaters: [],
-      spawnTimer: 0.4 + Math.random() * 0.6,
+      particles: [],
+      spawnDist: W * 0.35 + Math.random() * W * 0.2,
       score: 0,
       distance: 0,
       speed: 300,
@@ -490,7 +500,10 @@
     currentMode = mode;
     modeConfig = config;
     state = freshState();
-    if (mode === 'sandbox') state.spawnTimer = 0.3 + Math.random() * Math.min(0.6, sandboxSettings.gap);
+    if (mode === 'sandbox') state.spawnDist = state.speed * sandboxSettings.gap * (0.3 + Math.random() * 0.4);
+    accumulator = 0;
+    jumpBuffer = 0;
+    jumpHeld = false;
     paused = false;
     $('pauseOverlay').classList.remove('show');
     $('liveScore').textContent = '0';
@@ -510,18 +523,49 @@
     rafId = null;
   }
 
-  function jump() {
-    if (!running || paused || !state) return;
-    const s = state;
-    const power = currentMode === 'sandbox' ? sandboxSettings.jump : JUMP_V;
-    if (!s.jumping) {
-      s.vy = -power;
-      s.jumping = true;
-      s.airJumpsUsed = 0;
-    } else if (s.airJumpsUsed < 1) {
-      s.airJumpsUsed++;
-      s.vy = -power * 0.85;
+  function jumpPower() {
+    return currentMode === 'sandbox' ? sandboxSettings.jump : JUMP_V;
+  }
+
+  function burstDust(x, y, count, scale) {
+    if (!state) return;
+    for (let i = 0; i < count; i++) {
+      state.particles.push({
+        x: x + (Math.random() - 0.5) * charW() * 0.5,
+        y: y - Math.random() * 4,
+        vx: (Math.random() - 0.7) * 90 * scale,
+        vy: -Math.random() * 70 * scale,
+        life: 0.45 + Math.random() * 0.25,
+        size: 2 + Math.random() * 3,
+      });
     }
+  }
+
+  function startJump(kind) {
+    const s = state;
+    s.vy = -jumpPower() * (kind === 'air' ? 0.9 : 1);
+    s.onGround = false;
+    s.coyote = 0;
+    s.jumpStretch = 1;
+    s.airJumpsUsed = kind === 'air' ? s.airJumpsUsed + 1 : 0;
+    jumpBuffer = 0;
+    burstDust(charX() + charW() / 2, groundY(), kind === 'air' ? 3 : 5, 1);
+  }
+
+  function pressJump() {
+    if (!running || paused || !state) return;
+    jumpHeld = true;
+    jumpBuffer = JUMP_BUFFER;
+    const s = state;
+    if (s.onGround || s.coyote > 0) startJump('ground');
+    else if (s.airJumpsUsed < 1) startJump('air');
+  }
+
+  function releaseJump() {
+    if (!jumpHeld) return;
+    jumpHeld = false;
+    // Kısa basış = kısa zıplama, uzun basış = tam zıplama
+    if (state && state.vy < -200) state.vy *= 0.78;
   }
 
   function gameOver() {
@@ -554,6 +598,7 @@
     $('pauseOverlay').classList.toggle('show', paused);
     if (!paused) {
       lastTime = performance.now();
+      accumulator = 0;
       if (rafId) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(loop);
     } else if (rafId) {
@@ -564,10 +609,14 @@
 
   function loop(now) {
     if (!running || paused) return;
-    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    const frameDt = Math.min((now - lastTime) / 1000, 0.1);
     lastTime = now;
-    animTime += dt;
-    update(dt);
+    accumulator += frameDt;
+    while (accumulator >= FIXED_DT && running) {
+      animTime += FIXED_DT;
+      update(FIXED_DT);
+      accumulator -= FIXED_DT;
+    }
     draw();
     rafId = requestAnimationFrame(loop);
   }
@@ -580,17 +629,49 @@
     const cx = charX();
     const es = eggSize();
 
-    s.vy += GRAVITY * dt;
+    // Jump buffer: yere inmeden hemen önce yapılan basışı hatırla
+    if (jumpBuffer > 0) {
+      jumpBuffer = Math.max(0, jumpBuffer - dt);
+      if (s.onGround || s.coyote > 0) startJump('ground');
+      else if (s.airJumpsUsed < 1) startJump('air');
+    }
+
+    // Coyote time (kısa tolerans)
+    if (s.onGround) s.coyote = COYOTE_TIME;
+    else s.coyote = Math.max(0, s.coyote - dt);
+
+    // Değişken zıplama: bırakıldığında aşağı doğru daha güçlü, tepe noktasında askıda kalma
+    let grav = GRAVITY;
+    if (s.vy < 0 && !jumpHeld) grav *= 1.4;
+    else if (Math.abs(s.vy) < 190) grav *= 0.6;
+    s.vy = Math.min(1600, s.vy + grav * dt);
     s.top += s.vy * dt;
-    if (s.top >= g - ch) { s.top = g - ch; s.vy = 0; s.jumping = false; s.airJumpsUsed = 0; }
+
+    if (s.top >= g - ch) {
+      const impact = s.vy;
+      s.top = g - ch;
+      s.vy = 0;
+      if (!s.onGround) {
+        s.onGround = true;
+        s.airJumpsUsed = 0;
+        s.squash = Math.min(1, 0.35 + impact / 1100);
+        burstDust(cx + cw / 2, g, 6, 1);
+      }
+      s.coyote = COYOTE_TIME;
+    } else {
+      s.onGround = false;
+    }
+    s.squash = Math.max(0, s.squash - dt * 4.5);
+    s.jumpStretch = Math.max(0, s.jumpStretch - dt * 5);
 
     if (currentMode === 'sandbox') s.speed = sandboxSettings.speed;
     else if (currentMode === 'story' && modeConfig) s.speed = Math.min(700, modeConfig.speed + s.score * 4);
     else s.speed = Math.min(620, 300 + s.score * 6);
     s.distance += s.speed * dt;
 
-    s.spawnTimer -= dt;
-    if (s.spawnTimer <= 0) {
+    // Mesafeye göre spawn: hız arttığında boşluklar daralmaz
+    s.spawnDist -= s.speed * dt;
+    if (s.spawnDist <= 0) {
       // Rastgele dalga: bazen tek, bazen 2-3 patlıcan arka arkaya
       const r = Math.random();
       let count = 1;
@@ -638,13 +719,15 @@
         minGap = sandboxSettings.gap;
         variance = 0.2;
       } else if (currentMode === 'story' && modeConfig) {
-        minGap = Math.max(0.45, modeConfig.gap - s.score * 0.008);
+        minGap = Math.max(0.5, modeConfig.gap - s.score * 0.008);
         variance = modeConfig.variance;
       } else {
-        minGap = Math.max(0.4, 1.4 - s.score * 0.018);
-        variance = count > 1 ? 1.1 : 0.75;
+        minGap = 1.15;
+        variance = count > 1 ? 0.8 : 0.7;
       }
-      s.spawnTimer = minGap + Math.random() * variance;
+      // En az 0.85 sn'lik iniş+tekrar zıplama payı bırak (çözülebilirlik)
+      minGap = Math.max(minGap, 0.85);
+      s.spawnDist = s.speed * (minGap + Math.random() * variance);
     }
 
     for (let i = s.eggs.length - 1; i >= 0; i--) {
@@ -699,6 +782,16 @@
       f.life -= dt * 1.2;
       f.y -= 34 * dt;
       if (f.life <= 0) s.floaters.splice(i, 1);
+    }
+
+    // Toz parçacıkları (kalkış / iniş)
+    for (let i = s.particles.length - 1; i >= 0; i--) {
+      const p = s.particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 260 * dt;
+      p.life -= dt * 2;
+      if (p.life <= 0) s.particles.splice(i, 1);
     }
   }
 
@@ -865,6 +958,17 @@
       ctx.fillText(f.text, f.x, f.y);
       ctx.restore();
     });
+
+    // Kalkış / iniş tozları
+    s.particles.forEach((p) => {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life));
+      ctx.fillStyle = '#cbd5e1';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
   }
 
   function drawGhost(x, top, img, name, tint) {
@@ -921,7 +1025,7 @@
   }
 
   function drawRunner(top, w, h, x, g) {
-    const air = state.jumping;
+    const air = !state.onGround;
     const moving = running && !paused;
     const phase = animTime * 11;
     const bob = moving && !air ? Math.abs(Math.sin(phase)) * h * 0.022 : 0;
@@ -964,6 +1068,14 @@
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
+    // Squash & stretch: kalkışta uzama, inişte sıkışma
+    const sq = state.squash || 0;
+    const st = state.jumpStretch || 0;
+    ctx.translate(cx, g);
+    ctx.scale(1 + sq * 0.2 - st * 0.1, 1 - sq * 0.22 + st * 0.14);
+    if (air) ctx.rotate(state.vy < 0 ? -0.1 : 0.1);
+    ctx.translate(-cx, -g);
+
     // Bacaklar: ayak yörüngesi + IK ile diz bükülmesi
     for (const side of [-1, 1]) {
       const p = phase + (side === -1 ? 0 : Math.PI);
@@ -972,7 +1084,7 @@
       const hipX = cx + side * w * 0.11;
       const footX = hipX + sw * stride * (air ? 0.65 : 1);
       const footY = air
-        ? hipY + legLen * 0.6 - Math.max(0, cw) * h * 0.1
+        ? hipY + legLen * 0.45 - Math.max(0, cw) * h * 0.1
         : (g - 2) - (stance ? 0 : cw * h * 0.2);
       const knee = elbowPoint(hipX, hipY, footX, footY, thigh, shin, -1);
 
@@ -1006,10 +1118,19 @@
       const p = phase + (side === -1 ? Math.PI : 0);
       const sw = Math.sin(p);
       const shX = cx + side * w * 0.22 + lean * 0.5;
-      const elX = shX + sw * w * 0.3;
-      const elY = shoulderY + h * 0.14;
-      const handX = elX - sw * w * 0.1 + w * 0.09;
-      const handY = elY - h * 0.09;
+      let elX, elY, handX, handY;
+      if (air) {
+        // Havada kollar yukarı kalkar
+        elX = shX + side * w * 0.12 + sw * w * 0.05;
+        elY = shoulderY - h * 0.03;
+        handX = elX + side * w * 0.05;
+        handY = elY - h * 0.17;
+      } else {
+        elX = shX + sw * w * 0.3;
+        elY = shoulderY + h * 0.14;
+        handX = elX - sw * w * 0.1 + w * 0.09;
+        handY = elY - h * 0.09;
+      }
       ctx.strokeStyle = '#f1c27d';
       ctx.lineWidth = Math.max(4, w * 0.105);
       ctx.beginPath();
@@ -1307,17 +1428,25 @@
     $(id).addEventListener('input', updateSandboxLabels);
   });
   $('sandboxStartBtn').addEventListener('click', () => { saveSandboxSettings(); startGame('sandbox'); });
-  $('jumpBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); jump(); });
-  canvas.addEventListener('pointerdown', (e) => { e.preventDefault(); jump(); });
+  $('jumpBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); pressJump(); });
+  canvas.addEventListener('pointerdown', (e) => { e.preventDefault(); pressJump(); });
+  window.addEventListener('pointerup', releaseJump);
+  window.addEventListener('pointercancel', releaseJump);
   $('pauseBtn').addEventListener('click', () => togglePause(true));
   $('resumeBtn').addEventListener('click', () => togglePause(false));
   $('quitBtn').addEventListener('click', () => { stopGame(); enterMenu(); });
 
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Space' || e.code === 'ArrowUp') {
-      if (screens.game.classList.contains('active')) { e.preventDefault(); jump(); }
+      if (screens.game.classList.contains('active')) {
+        e.preventDefault();
+        if (!e.repeat) pressJump();
+      }
     }
     if (e.code === 'Escape' && screens.game.classList.contains('active')) togglePause();
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space' || e.code === 'ArrowUp') releaseJump();
   });
 
   document.addEventListener('visibilitychange', () => {
