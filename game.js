@@ -5,7 +5,15 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 15;
+  const APP_VERSION = 16;
+
+  const ROASTS = [
+    'Sikim hıyar desem tuzla koşarsın.',
+    'Sen kadıya derdini anlattım ama kadi sikini salladı.',
+    'Elin sikini görmedin ve kendininkini piyade tüfeği sandın işte şimdi yarrağı yedin.',
+    'Fakirin karnı doyunca siki kalkarmış.',
+    'Nenen pekmez kaynattı deden sikini oynattı.',
+  ];
 
   const STORY_LEVELS = [
     {
@@ -576,6 +584,7 @@
     $('finalScore').textContent = score;
     $('overText').textContent =
       'Bugün ' + score + ' yarraktan kaçtın ama en sonunda yarrağı yedin!';
+    $('roastText').textContent = ROASTS[Math.floor(Math.random() * ROASTS.length)];
     $('newBest').hidden = true;
     show('over');
 
@@ -1391,6 +1400,14 @@
      Input
      ============================================================ */
   $('startBtn').addEventListener('click', () => startGame());
+  $('roastRerollBtn').addEventListener('click', () => {
+    const current = $('roastText').textContent;
+    let next = current;
+    while (next === current && ROASTS.length > 1) {
+      next = ROASTS[Math.floor(Math.random() * ROASTS.length)];
+    }
+    $('roastText').textContent = next;
+  });
   $('retryBtn').addEventListener('click', () => {
     if (currentMode === 'arena') returnToArenaLobby();
     else startGame();
