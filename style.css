@@ -254,6 +254,21 @@ input:focus { border-color: var(--accent); }
   border: 3px solid transparent; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
 .swatch.selected { border-color: #ffffff; transform: scale(1.12); }
+.swatch.locked { opacity: 0.6; font-size: 14px; color: #fff; }
+.coin-chip {
+  background: rgba(234,179,8,0.18); border: 1px solid rgba(234,179,8,0.45);
+  border-radius: 20px; padding: 3px 9px; font-size: 12px; color: #fde047;
+  white-space: nowrap;
+}
+.coin-line { font-size: 13px; color: #fde047; text-align: center; margin: 8px 0; }
+.donut-box {
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(135deg, rgba(236,72,153,0.22), rgba(168,85,247,0.18));
+  border: 2px solid #ec4899; border-radius: 14px;
+  padding: 12px; margin-bottom: 12px; text-align: left;
+}
+.donut-icon { font-size: 34px; }
+.donut-label { font-size: 10px; font-weight: 900; color: #f9a8d4; letter-spacing: 1px; }
 .admin-pass-box {
   background: rgba(239,68,68,0.1); border: 1px dashed rgba(248,113,113,0.5);
   border-radius: 12px; padding: 12px; margin-top: 10px; text-align: left;

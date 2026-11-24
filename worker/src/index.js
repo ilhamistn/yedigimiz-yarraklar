@@ -40,6 +40,10 @@ function publicUser(row) {
     games: row.games,
     totalDodged: row.total_dodged,
     eaten: row.eaten || 0,
+    coins: row.coins || 0,
+    donuts: row.donuts || 0,
+    ownedSkins: row.owned_skins || 1,
+    ownedShoes: row.owned_shoes || 1,
     approved: row.approved === 1,
     storyLevel: row.story_level || 1,
     skinTone: row.skin_tone || 0,
@@ -242,7 +246,21 @@ export default {
       return json({ ok: true, token });
     }
 
-    // ---- Karakter görünümü ----
+    // ---- Donut yakalama: para kazandır ----
+    if (path === '/api/donut' && method === 'POST') {
+      const user = await authenticate(request, env);
+      if (!user) return fail('Giriş yapmalısın.', 401);
+      const body = await readBody(request);
+      const count = body && body.count;
+      if (!Number.isInteger(count) || count < 1 || count > 20) return fail('Geçersiz miktar.');
+      const earned = count * 5; // her donut 5 para
+      await env.DB.prepare('UPDATE users SET donuts = donuts + ?, coins = coins + ? WHERE id = ?')
+        .bind(count, earned, user.id).run();
+      const updated = await env.DB.prepare('SELECT donuts, coins FROM users WHERE id = ?').bind(user.id).first();
+      return json({ ok: true, earned, donuts: updated.donuts, coins: updated.coins });
+    }
+
+    // ---- Karakter görünümü (kilitli renkler pullu) ----
     if (path === '/api/appearance' && method === 'POST') {
       const user = await authenticate(request, env);
       if (!user) return fail('Giriş yapmalısın.', 401);
@@ -251,9 +269,28 @@ export default {
       const shoe = body && body.shoeColor;
       if (!Number.isInteger(skin) || skin < 0 || skin > 5) return fail('Geçersiz ten rengi.');
       if (!Number.isInteger(shoe) || shoe < 0 || shoe > 5) return fail('Geçersiz ayakkabı rengi.');
-      await env.DB.prepare('UPDATE users SET skin_tone = ?, shoe_color = ? WHERE id = ?')
-        .bind(skin, shoe, user.id).run();
-      return json({ ok: true, skinTone: skin, shoeColor: shoe });
+
+      let ownedSkins = user.owned_skins || 1;
+      let ownedShoes = user.owned_shoes || 1;
+      let cost = 0;
+      const skinBit = 1 << skin;
+      const shoeBit = 1 << shoe;
+      if (!(ownedSkins & skinBit)) cost += skin === 0 ? 0 : 50;
+      if (!(ownedShoes & shoeBit)) cost += shoe === 0 ? 0 : 30;
+      const balance = user.coins || 0;
+      if (cost > balance) {
+        return fail('Yetersiz para. Gerekli: ' + cost + ', var: ' + balance + '.', 402);
+      }
+      ownedSkins |= skinBit;
+      ownedShoes |= shoeBit;
+
+      await env.DB.prepare(
+        'UPDATE users SET skin_tone = ?, shoe_color = ?, owned_skins = ?, owned_shoes = ?, coins = coins - ? WHERE id = ?'
+      ).bind(skin, shoe, ownedSkins, ownedShoes, cost, user.id).run();
+      return json({
+        ok: true, skinTone: skin, shoeColor: shoe,
+        cost, coins: balance - cost, ownedSkins, ownedShoes,
+      });
     }
 
     // ---- Kullanıcı kendi yediği yarrak sayısını ekler ----
@@ -308,7 +345,10 @@ export default {
       const mostEaten = await env.DB.prepare(
         'SELECT username, games, best, eaten FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY eaten DESC, username ASC LIMIT 1'
       ).first() || null;
-      return json({ users: results, mostEaten });
+      const mostDonuts = await env.DB.prepare(
+        'SELECT username, donuts, coins FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY donuts DESC, username ASC LIMIT 1'
+      ).first() || null;
+      return json({ users: results, mostEaten, mostDonuts });
     }
 
     // ---- Admin: tüm kullanıcılar ----

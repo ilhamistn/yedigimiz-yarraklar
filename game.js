@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 29;
+  const APP_VERSION = 30;
 
   const SKINS = [
     { base: '#fde3c4', dark: '#e5b98f' },
@@ -220,6 +220,7 @@
     closeArena();
     if (!profile) { show('auth'); return; }
     $('userNameText').textContent = profile.username;
+    renderCoins();
     $('adminBtn').hidden = !profile.isAdmin;
     if (profile.isAdmin) {
       api('/api/admin/users').then((d) => {
@@ -272,6 +273,14 @@
     try {
       const data = await api('/api/leaderboard', { auth: false });
       list.innerHTML = '';
+      const donutBox = $('donutBox');
+      if (data.mostDonuts && data.mostDonuts.donuts > 0) {
+        donutBox.hidden = false;
+        $('donutName').textContent = data.mostDonuts.username;
+        $('donutStats').textContent = data.mostDonuts.donuts + ' donut · ' + data.mostDonuts.coins + ' 💰 biriktirdi';
+      } else {
+        donutBox.hidden = true;
+      }
       const worstBox = $('worstBox');
       if (data.mostEaten) {
         worstBox.hidden = false;
@@ -454,27 +463,41 @@
   /* ============================================================
      Ayarlar: şifre değiştir (admin dahil)
      ============================================================ */
+  function renderCoins() {
+    $('coinBalance').textContent = (profile && profile.coins) || 0;
+  }
+
   function renderSwatches() {
     const skin = (profile && profile.skinTone) || 0;
     const shoe = (profile && profile.shoeColor) || 0;
+    const ownedSkins = (profile && profile.ownedSkins) || 1;
+    const ownedShoes = (profile && profile.ownedShoes) || 1;
     const skinBox = $('skinSwatches');
     const shoeBox = $('shoeSwatches');
     skinBox.innerHTML = '';
     shoeBox.innerHTML = '';
     SKINS.forEach((s, i) => {
+      const owned = !!(ownedSkins & (1 << i));
       const b = document.createElement('button');
-      b.className = 'swatch' + (i === skin ? ' selected' : '');
+      b.className = 'swatch' + (i === skin ? ' selected' : '') + (owned ? '' : ' locked');
       b.style.background = s.base;
+      b.title = owned ? 'Ten rengi' : '50 💰 ile aç';
+      b.textContent = owned ? '' : '🔒';
       b.addEventListener('click', () => saveAppearance(i, shoe));
       skinBox.appendChild(b);
     });
     SHOES.forEach((s, i) => {
+      const owned = !!(ownedShoes & (1 << i));
       const b = document.createElement('button');
-      b.className = 'swatch' + (i === shoe ? ' selected' : '');
+      b.className = 'swatch' + (i === shoe ? ' selected' : '') + (owned ? '' : ' locked');
       b.style.background = s.upper;
+      b.title = owned ? 'Ayakkabı' : '30 💰 ile aç';
+      b.textContent = owned ? '' : '🔒';
       b.addEventListener('click', () => saveAppearance(skin, i));
       shoeBox.appendChild(b);
     });
+    $('appearanceCoins').textContent = (profile && profile.coins) || 0;
+    $('appearanceDonuts').textContent = (profile && profile.donuts) || 0;
   }
 
   async function saveAppearance(skinTone, shoeColor) {
@@ -484,7 +507,13 @@
       });
       profile.skinTone = data.skinTone;
       profile.shoeColor = data.shoeColor;
-      $('appearanceStatus').textContent = '✓ Görünüm kaydedildi.';
+      profile.coins = data.coins;
+      profile.ownedSkins = data.ownedSkins;
+      profile.ownedShoes = data.ownedShoes;
+      $('appearanceStatus').textContent = data.cost
+        ? '✓ Yeni renk açıldı! (-' + data.cost + ' 💰) Kalan: ' + data.coins
+        : '✓ Görünüm kaydedildi.';
+      renderCoins();
       renderSwatches();
     } catch (err) {
       $('appearanceStatus').textContent = err.message;
@@ -907,7 +936,8 @@
           egg.counted = true;
           egg.collected = true;
           s.score += 2;
-          s.floaters.push({ x: cx, y: s.top - 8, text: '+2 🍩', life: 1 });
+          s.floaters.push({ x: cx, y: s.top - 8, text: '+2 🍩 +5💰', life: 1 });
+          reportDonut();
           $('liveScore').textContent = s.score;
           if (currentMode === 'arena') reportArenaScore(s.score);
           if (currentMode === 'story' && modeConfig && s.score >= modeConfig.target) {
@@ -1489,6 +1519,15 @@
   }
 
   function reportArenaScore(score) { sendArena({ type: 'score', score }); }
+
+  function reportDonut() {
+    api('/api/donut', { method: 'POST', body: { count: 1 } })
+      .then((d) => {
+        if (profile) { profile.coins = d.coins; profile.donuts = d.donuts; }
+        renderCoins();
+      })
+      .catch(() => {});
+  }
 
   function closeArena() {
     clearArenaCountdown();

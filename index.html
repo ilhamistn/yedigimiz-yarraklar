@@ -44,6 +44,7 @@
           <div class="user-chip">
             <span class="user-avatar" id="userAvatar">😎</span>
             <span id="userNameText">Oyuncu</span>
+            <span class="coin-chip">💰 <span id="coinBalance">0</span></span>
           </div>
           <button class="btn btn-ghost" id="logoutBtn">Çıkış</button>
         </header>
@@ -173,7 +174,8 @@
       <div class="auth-card">
         <div class="logo-emoji">🎨</div>
         <h2 class="over-title">Karakter Özelleştir</h2>
-        <p class="subtitle">Ten ve ayakkabı rengini seç. Değişiklik anında kaydedilir.</p>
+        <p class="subtitle">Ten rengi 50 💰, ayakkabı 30 💰. İlk renkler ücretsiz.</p>
+        <p class="coin-line">💰 Paran: <strong id="appearanceCoins">0</strong> · 🍩 Donut: <strong id="appearanceDonuts">0</strong></p>
         <div class="swatch-label">Ten rengi</div>
         <div class="swatches" id="skinSwatches"></div>
         <div class="swatch-label">Ayakkabı rengi</div>
@@ -220,6 +222,14 @@
             <button class="btn btn-primary" id="eatenAddBtn" style="flex:1;padding:10px">Ekle</button>
           </div>
           <p id="eatenStatus" class="hint">Toplam yediğin yarrak: <strong id="myEaten">0</strong></p>
+        </div>
+        <div id="donutBox" class="donut-box" hidden>
+          <span class="donut-icon">🍩</span>
+          <div class="worst-info">
+            <span class="donut-label">EN ÇOK DONUT YAKALAYAN</span>
+            <strong id="donutName">—</strong>
+            <span id="donutStats"></span>
+          </div>
         </div>
         <div id="worstBox" class="worst-box" hidden>
           <span class="worst-icon">😵</span>
