@@ -41,6 +41,8 @@ function publicUser(row) {
     totalDodged: row.total_dodged,
     approved: row.approved === 1,
     storyLevel: row.story_level || 1,
+    skinTone: row.skin_tone || 0,
+    shoeColor: row.shoe_color || 0,
     isAdmin: row.is_admin === 1,
   };
 }
@@ -239,6 +241,37 @@ export default {
       return json({ ok: true, token });
     }
 
+    // ---- Karakter görünümü ----
+    if (path === '/api/appearance' && method === 'POST') {
+      const user = await authenticate(request, env);
+      if (!user) return fail('Giriş yapmalısın.', 401);
+      const body = await readBody(request);
+      const skin = body && body.skinTone;
+      const shoe = body && body.shoeColor;
+      if (!Number.isInteger(skin) || skin < 0 || skin > 5) return fail('Geçersiz ten rengi.');
+      if (!Number.isInteger(shoe) || shoe < 0 || shoe > 5) return fail('Geçersiz ayakkabı rengi.');
+      await env.DB.prepare('UPDATE users SET skin_tone = ?, shoe_color = ? WHERE id = ?')
+        .bind(skin, shoe, user.id).run();
+      return json({ ok: true, skinTone: skin, shoeColor: shoe });
+    }
+
+    // ---- Admin: başka kullanıcının şifresini değiştir ----
+    if (path === '/api/admin/password' && method === 'POST') {
+      const admin = await adminOnly(request, env);
+      if (admin instanceof Response) return admin;
+      const body = await readBody(request);
+      if (!body || !Number.isInteger(body.id) || !validPassword(body.password)) {
+        return fail('Geçersiz kullanıcı veya şifre (4-64 karakter).');
+      }
+      const target = await env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(body.id).first();
+      if (!target) return fail('Kullanıcı bulunamadı.', 404);
+      const salt = randomHex(16);
+      const hash = await sha256(salt + ':' + body.password);
+      await env.DB.prepare('UPDATE users SET salt = ?, pass_hash = ? WHERE id = ?').bind(salt, hash, body.id).run();
+      await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(body.id).run();
+      return json({ ok: true });
+    }
+
     // ---- Profil fotoğrafı ----
     if (path === '/api/face' && method === 'POST') {
       const user = await authenticate(request, env);
@@ -322,6 +355,7 @@ export class Arena {
     const entry = {
       ws: server, name, uid, score: 0, face: '',
       ready: false, playing: false, joinIndex: this.nextJoin++,
+      skinTone: 2, shoeColor: 0,
     };
     this.sessions.set(server, entry);
     server.accept();
@@ -336,6 +370,9 @@ export class Arena {
           entry.score = Math.max(0, Math.min(100000, Math.floor(msg.score)));
         } else if (msg.type === 'face' && typeof msg.face === 'string') {
           entry.face = msg.face.slice(0, 200000);
+        } else if (msg.type === 'appearance') {
+          if (Number.isInteger(msg.skinTone)) entry.skinTone = Math.max(0, Math.min(5, msg.skinTone));
+          if (Number.isInteger(msg.shoeColor)) entry.shoeColor = Math.max(0, Math.min(5, msg.shoeColor));
         } else if (msg.type === 'ready') {
           if (this.phase === 'running') return;
           if (!msg.ready && this.phase === 'starting') { this.cancelStart(); return; }
@@ -395,6 +432,8 @@ export class Arena {
         ready: s.ready,
         playing: s.playing,
         joinIndex: s.joinIndex,
+        skinTone: s.skinTone,
+        shoeColor: s.shoeColor,
       }));
   }
 

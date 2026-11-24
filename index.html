@@ -186,6 +186,12 @@
           <p id="passError" class="error"></p>
           <button type="submit" class="btn btn-primary" id="savePassBtn">Şifreyi Kaydet</button>
         </form>
+        <div class="section-divider">KARAKTER GÖRÜNÜMÜ</div>
+        <div class="swatch-label">Ten rengi</div>
+        <div class="swatches" id="skinSwatches"></div>
+        <div class="swatch-label">Ayakkabı rengi</div>
+        <div class="swatches" id="shoeSwatches"></div>
+        <p id="appearanceStatus" class="hint"></p>
         <button class="btn btn-outline" id="settingsBackBtn" style="width:100%;margin-top:10px">Geri Dön</button>
       </div>
     </section>
@@ -218,6 +224,15 @@
         <p class="subtitle" style="margin:14px 0 10px">Onaylı kullanıcılar</p>
         <div id="adminList" class="admin-list"></div>
         <p id="adminStatus" class="hint"></p>
+        <div id="adminPassBox" class="admin-pass-box" hidden>
+          <label>🔑 <span id="adminPassTarget"></span> için yeni şifre</label>
+          <input type="password" id="adminNewPass" minlength="4" maxlength="64" placeholder="en az 4 karakter" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn btn-primary" id="adminPassSave" style="flex:1;padding:10px">Kaydet</button>
+            <button class="btn btn-outline" id="adminPassCancel" style="flex:1;padding:10px">Vazgeç</button>
+          </div>
+          <p id="adminPassStatus" class="error"></p>
+        </div>
         <div style="display:flex;gap:8px;margin-top:10px">
           <button class="btn btn-outline" id="adminRefreshBtn" style="flex:1;padding:10px">🔄 Yenile</button>
           <button class="btn btn-primary" id="adminBackBtn" style="flex:1;padding:10px">Geri Dön</button>

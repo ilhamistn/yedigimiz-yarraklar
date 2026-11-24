@@ -5,7 +5,24 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 26;
+  const APP_VERSION = 27;
+
+  const SKINS = [
+    { base: '#fde3c4', dark: '#e5b98f' },
+    { base: '#f0c49a', dark: '#d9a06d' },
+    { base: '#f0a468', dark: '#d4803f' },
+    { base: '#c98a5e', dark: '#a86b42' },
+    { base: '#97643f', dark: '#7b4d2e' },
+    { base: '#6b4226', dark: '#53321c' },
+  ];
+  const SHOES = [
+    { upper: '#78350f', sole: '#f8fafc' },
+    { upper: '#111827', sole: '#f8fafc' },
+    { upper: '#dc2626', sole: '#ffffff' },
+    { upper: '#2563eb', sole: '#ffffff' },
+    { upper: '#16a34a', sole: '#ffffff' },
+    { upper: '#a855f7', sole: '#ffffff' },
+  ];
 
   const ROASTS = [
     'Sikim hıyar desem tuzla koşarsın.',
@@ -310,6 +327,8 @@
     return b;
   }
 
+  let adminTargetId = null;
+
   function adminRow(u, pending, rank) {
     const row = document.createElement('div');
     row.className = 'admin-row';
@@ -335,6 +354,19 @@
         return api('/api/admin/delete', { method: 'POST', body: { id: u.id } });
       }));
     }
+
+    const passBtn = document.createElement('button');
+    passBtn.className = 'mini-btn approve';
+    passBtn.textContent = '🔑 Şifre';
+    passBtn.addEventListener('click', () => {
+      adminTargetId = u.id;
+      $('adminPassBox').hidden = false;
+      $('adminPassTarget').textContent = u.username;
+      $('adminNewPass').value = '';
+      $('adminPassStatus').textContent = '';
+      $('adminPassStatus').style.color = '';
+    });
+    actions.appendChild(passBtn);
 
     row.append(rankEl, name, stats, actions);
     return row;
@@ -375,12 +407,70 @@
   });
   $('adminBackBtn').addEventListener('click', enterMenu);
 
+  $('adminPassCancel').addEventListener('click', () => { $('adminPassBox').hidden = true; });
+  $('adminPassSave').addEventListener('click', async () => {
+    const pw = $('adminNewPass').value;
+    const st = $('adminPassStatus');
+    st.style.color = '';
+    if (pw.length < 4) { st.textContent = 'Şifre en az 4 karakter olmalı.'; return; }
+    $('adminPassSave').disabled = true;
+    try {
+      await api('/api/admin/password', { method: 'POST', body: { id: adminTargetId, password: pw } });
+      st.style.color = '#86efac';
+      st.textContent = '✓ Şifre değiştirildi.';
+      $('adminNewPass').value = '';
+    } catch (err) {
+      st.textContent = err.message;
+    } finally {
+      $('adminPassSave').disabled = false;
+    }
+  });
+
   /* ============================================================
      Ayarlar: şifre değiştir (admin dahil)
      ============================================================ */
+  function renderSwatches() {
+    const skin = (profile && profile.skinTone) || 0;
+    const shoe = (profile && profile.shoeColor) || 0;
+    const skinBox = $('skinSwatches');
+    const shoeBox = $('shoeSwatches');
+    skinBox.innerHTML = '';
+    shoeBox.innerHTML = '';
+    SKINS.forEach((s, i) => {
+      const b = document.createElement('button');
+      b.className = 'swatch' + (i === skin ? ' selected' : '');
+      b.style.background = s.base;
+      b.addEventListener('click', () => saveAppearance(i, shoe));
+      skinBox.appendChild(b);
+    });
+    SHOES.forEach((s, i) => {
+      const b = document.createElement('button');
+      b.className = 'swatch' + (i === shoe ? ' selected' : '');
+      b.style.background = s.upper;
+      b.addEventListener('click', () => saveAppearance(skin, i));
+      shoeBox.appendChild(b);
+    });
+  }
+
+  async function saveAppearance(skinTone, shoeColor) {
+    try {
+      const data = await api('/api/appearance', {
+        method: 'POST', body: { skinTone, shoeColor },
+      });
+      profile.skinTone = data.skinTone;
+      profile.shoeColor = data.shoeColor;
+      $('appearanceStatus').textContent = '✓ Görünüm kaydedildi.';
+      renderSwatches();
+    } catch (err) {
+      $('appearanceStatus').textContent = err.message;
+    }
+  }
+
   $('settingsBtn').addEventListener('click', () => {
     $('passError').textContent = '';
     $('passError').style.color = '';
+    $('appearanceStatus').textContent = '';
+    renderSwatches();
     show('settings');
   });
   $('settingsBackBtn').addEventListener('click', enterMenu);
@@ -493,6 +583,7 @@
   let arenaPlayers = [];
   let lastArenaRender = 0;
   const arenaFaceImgs = {};
+  const arenaLooks = {};
   const FIRST_HEAD_START_SEC = 0.5;
   const SANDBOX_KEY = 'yy_sandbox_v1';
   let sandboxSettings = { speed: 300, gap: 1.0, jump: 780, immortal: false };
@@ -1004,6 +1095,8 @@
           moving: true,
           phase: pPhase,
           face: arenaFaceImgs[p.name] || null,
+          skin: arenaLooks[p.name] && arenaLooks[p.name].skin,
+          shoe: arenaLooks[p.name] && arenaLooks[p.name].shoe,
           squash: 0,
           stretch: 0,
         });
@@ -1076,8 +1169,10 @@
     const y = top + bob;
     const lean = moving && !air ? h * 0.05 : 0;
     const cx = x + w / 2;
-    const skin = '#f0a468';
-    const skinDark = '#d4803f';
+    const skinPair = o.skin || SKINS[Math.min(5, (profile && profile.skinTone) || 0)] || SKINS[2];
+    const shoePair = o.shoe || SHOES[Math.min(5, (profile && profile.shoeColor) || 0)] || SHOES[0];
+    const skin = skinPair.base;
+    const skinDark = skinPair.dark;
     const headR = w * 0.27;
     const headX = cx + lean;
     const headCy = y + headR + h * 0.01;
@@ -1175,14 +1270,14 @@
         ctx.stroke();
       }
 
-      // Kahverengi ayakkabı + beyaz taban
+      // Seçilen renkte ayakkabı + taban
       ctx.save();
       ctx.translate(footX, footY);
       ctx.rotate(sw * 0.18);
-      ctx.fillStyle = '#f8fafc';
+      ctx.fillStyle = shoePair.sole;
       roundRect(-w * 0.17, -h * 0.022, w * 0.35, h * 0.055, h * 0.02);
       ctx.fill();
-      ctx.fillStyle = '#78350f';
+      ctx.fillStyle = shoePair.upper;
       roundRect(-w * 0.16, -h * 0.055, w * 0.32, h * 0.065, h * 0.02);
       ctx.fill();
       ctx.restore();
@@ -1327,6 +1422,11 @@
         $('arenaStatus').textContent = 'Bağlısın!';
         arenaReady = false;
         if (profile && profile.face) sendArena({ type: 'face', face: profile.face });
+        sendArena({
+          type: 'appearance',
+          skinTone: (profile && profile.skinTone) || 0,
+          shoeColor: (profile && profile.shoeColor) || 0,
+        });
         sendArena({ type: 'lobby' });
         reportArenaScore(state ? state.score : 0);
       };
@@ -1403,6 +1503,10 @@
         im.src = p.face;
         arenaFaceImgs[p.name] = im;
       }
+      arenaLooks[p.name] = {
+        skin: SKINS[Math.min(5, p.skinTone || 0)] || SKINS[2],
+        shoe: SHOES[Math.min(5, p.shoeColor || 0)] || SHOES[0],
+      };
     });
     const firstJoin = Math.min.apply(null, arenaPlayers.map((p) => p.joinIndex || 0));
     const firstPlayer = arenaPlayers.find((p) => (p.joinIndex || 0) === firstJoin);
