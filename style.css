@@ -259,6 +259,11 @@ input[type="range"] { width: 100%; margin: 4px 0 14px; accent-color: var(--accen
 .arena-hud-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 2px; }
 .arena-hud-row.me { color: #86efac; }
 .avatar-dot { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
+.arena-countdown {
+  font-size: 72px; font-weight: 900; text-align: center;
+  color: #fde047; text-shadow: 0 0 24px rgba(253,224,71,0.6);
+  padding: 10px 0;
+}
 
 @media (min-width: 600px) {
   .game-wrap { max-width: 720px; margin: 0 auto; height: 100%; }

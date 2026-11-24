@@ -143,7 +143,8 @@
         <p class="subtitle">Şu anda arenada olan oyuncular</p>
         <div id="arenaPlayers" class="admin-list"></div>
         <p id="arenaStatus" class="hint">Bağlanıyor...</p>
-        <button class="btn btn-primary" id="arenaStartBtn" style="margin-top:12px">Arenaya Katıl</button>
+        <div id="arenaCountdown" class="arena-countdown" hidden></div>
+        <button class="btn btn-primary" id="arenaReadyBtn" style="margin-top:12px">✅ Hazırım</button>
         <button class="btn btn-outline" id="arenaBackBtn" style="margin-top:10px">Geri Dön</button>
       </div>
     </section>
@@ -229,6 +230,7 @@
         <p class="new-best" id="newBest" hidden>🎉 Yeni rekor!</p>
         <div class="over-actions">
           <button class="btn btn-primary" id="retryBtn">Tekrar Koş</button>
+          <button class="btn btn-outline" id="arenaReturnBtn" hidden>Arenaya Dön</button>
           <button class="btn btn-outline" id="menuBtn">Menü</button>
         </div>
       </div>

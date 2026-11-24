@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 8;
+  const APP_VERSION = 9;
 
   const STORY_LEVELS = [
     {
@@ -459,6 +459,8 @@
   let currentMode = 'classic';
   let modeConfig = null;
   let arenaWs = null;
+  let arenaReady = false;
+  let arenaCountdownTimer = null;
   const SANDBOX_KEY = 'yy_sandbox_v1';
   let sandboxSettings = { speed: 300, gap: 1.0, jump: 780, immortal: false };
   try {
@@ -515,6 +517,7 @@
     stopGame();
     const score = state.score;
     if (currentMode === 'arena') reportArenaScore(score);
+    $('arenaReturnBtn').hidden = currentMode !== 'arena';
     $('finalScore').textContent = score;
     $('overText').textContent =
       'Bugün ' + score + ' yarraktan kaçtın ama en sonunda yarrağı yedin!';
@@ -876,6 +879,10 @@
     show('storyResult');
   }
 
+  function sendArena(obj) {
+    if (arenaWs && arenaWs.readyState === 1) arenaWs.send(JSON.stringify(obj));
+  }
+
   function connectArena() {
     if (arenaWs && arenaWs.readyState <= 1) return;
     try {
@@ -883,11 +890,22 @@
       arenaWs = new WebSocket(url);
       arenaWs.onopen = () => {
         $('arenaStatus').textContent = 'Bağlısın!';
-        if (profile && profile.face) arenaWs.send(JSON.stringify({ type: 'face', face: profile.face }));
+        arenaReady = false;
+        if (profile && profile.face) sendArena({ type: 'face', face: profile.face });
+        sendArena({ type: 'lobby' });
         reportArenaScore(state ? state.score : 0);
       };
       arenaWs.onmessage = (e) => {
-        try { const m = JSON.parse(e.data); if (m.type === 'arena') renderArena(m.players); } catch (err) {}
+        try {
+          const m = JSON.parse(e.data);
+          if (m.type === 'arena') renderArena(m.players, m.phase, m.readyCount);
+          else if (m.type === 'start') showArenaCountdown(m.at);
+          else if (m.type === 'cancel') {
+            clearArenaCountdown();
+            arenaReady = false;
+            $('arenaReadyBtn').textContent = '✅ Hazırım';
+          }
+        } catch (err) {}
       };
       arenaWs.onclose = () => { arenaWs = null; $('arenaStatus').textContent = 'Bağlantı kapandı.'; };
       arenaWs.onerror = () => { $('arenaStatus').textContent = 'Bağlantı hatası.'; };
@@ -896,17 +914,47 @@
     }
   }
 
-  function reportArenaScore(score) {
-    if (arenaWs && arenaWs.readyState === 1) {
-      arenaWs.send(JSON.stringify({ type: 'score', score }));
-    }
-  }
+  function reportArenaScore(score) { sendArena({ type: 'score', score }); }
 
   function closeArena() {
+    clearArenaCountdown();
     if (arenaWs) { try { arenaWs.close(); } catch (e) {} arenaWs = null; }
+    arenaReady = false;
   }
 
-  function renderArena(players) {
+  function clearArenaCountdown() {
+    if (arenaCountdownTimer) clearInterval(arenaCountdownTimer);
+    arenaCountdownTimer = null;
+    $('arenaCountdown').hidden = true;
+  }
+
+  function showArenaCountdown(at) {
+    clearArenaCountdown();
+    const el = $('arenaCountdown');
+    el.hidden = false;
+    const tick = () => {
+      const left = at - Date.now();
+      if (left <= 0) {
+        clearArenaCountdown();
+        startGame('arena');
+        sendArena({ type: 'playing' });
+        return;
+      }
+      el.textContent = Math.ceil(left / 1000);
+    };
+    tick();
+    arenaCountdownTimer = setInterval(tick, 100);
+  }
+
+  function returnToArenaLobby() {
+    sendArena({ type: 'lobby' });
+    arenaReady = false;
+    clearArenaCountdown();
+    $('arenaReadyBtn').textContent = '✅ Hazırım';
+    show('arena');
+  }
+
+  function renderArena(players, phase, readyCount) {
     const hud = $('arenaHud');
     hud.innerHTML = '';
     const title = document.createElement('div');
@@ -939,10 +987,17 @@
         name.textContent = p.name + (profile && p.name === profile.username ? ' (sen)' : '');
         const score = document.createElement('span');
         score.className = 'admin-stats';
-        score.textContent = p.score + ' yarrak';
+        score.textContent = (p.playing ? '🏃 oynuyor' : p.ready ? '✅ hazır' : '⏳ bekliyor') + ' · ' + p.score;
         row.append(rank, name, score);
         list.appendChild(row);
       });
+    }
+
+    if (phase !== undefined) {
+      $('arenaStatus').textContent = phase === 'starting' ? 'Herkes hazır! Başlıyor...'
+        : phase === 'running' ? 'Tur sürüyor...'
+          : readyCount + '/' + players.length + ' oyuncu hazır · hepsi hazır olunca başlar';
+      $('arenaReadyBtn').textContent = arenaReady ? '↩️ Hazır değilim' : '✅ Hazırım';
     }
   }
 
@@ -1005,7 +1060,10 @@
      Input
      ============================================================ */
   $('startBtn').addEventListener('click', () => startGame());
-  $('retryBtn').addEventListener('click', () => startGame());
+  $('retryBtn').addEventListener('click', () => {
+    if (currentMode === 'arena') returnToArenaLobby();
+    else startGame();
+  });
   $('menuBtn').addEventListener('click', enterMenu);
 
   $('storyBtn').addEventListener('click', openStory);
@@ -1020,10 +1078,17 @@
 
   $('arenaBtn').addEventListener('click', () => {
     $('arenaStatus').textContent = 'Bağlanıyor...';
+    arenaReady = false;
+    $('arenaReadyBtn').textContent = '✅ Hazırım';
     connectArena();
     show('arena');
   });
-  $('arenaStartBtn').addEventListener('click', () => startGame('arena'));
+  $('arenaReadyBtn').addEventListener('click', () => {
+    arenaReady = !arenaReady;
+    sendArena({ type: 'ready', ready: arenaReady });
+    $('arenaReadyBtn').textContent = arenaReady ? '↩️ Hazır değilim' : '✅ Hazırım';
+  });
+  $('arenaReturnBtn').addEventListener('click', returnToArenaLobby);
   $('arenaBackBtn').addEventListener('click', () => { closeArena(); enterMenu(); });
 
   $('sandboxBtn').addEventListener('click', openSandbox);

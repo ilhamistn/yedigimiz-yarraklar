@@ -302,6 +302,7 @@ export class Arena {
   constructor(state) {
     this.state = state;
     this.sessions = new Map();
+    this.phase = 'lobby'; // lobby | starting | running
   }
 
   async fetch(request) {
@@ -313,9 +314,12 @@ export class Arena {
     const uid = url.searchParams.get('uid') || '';
     const [client, server] = new WebSocketPair();
 
-    const entry = { ws: server, name, uid, score: 0, face: '' };
+    const entry = { ws: server, name, uid, score: 0, face: '', ready: false, playing: false };
     this.sessions.set(server, entry);
     server.accept();
+
+    // Yeni oyuncu katıldığında hazırlıklar sıfırlanır (herkes yeniden hazır olmalı)
+    this.resetReady();
 
     server.addEventListener('message', (event) => {
       try {
@@ -324,30 +328,95 @@ export class Arena {
           entry.score = Math.max(0, Math.min(100000, Math.floor(msg.score)));
         } else if (msg.type === 'face' && typeof msg.face === 'string') {
           entry.face = msg.face.slice(0, 200000);
+        } else if (msg.type === 'ready') {
+          if (this.phase === 'running') return;
+          if (!msg.ready && this.phase === 'starting') { this.cancelStart(); return; }
+          entry.ready = !!msg.ready;
+          this.checkStart();
+        } else if (msg.type === 'playing') {
+          entry.playing = true;
+          entry.ready = false;
+          this.phase = 'running';
+        } else if (msg.type === 'lobby') {
+          entry.playing = false;
+          entry.ready = false;
+          if (this.phase !== 'lobby' && Array.from(this.sessions.values()).every((s) => !s.playing)) {
+            this.resetReady();
+            this.phase = 'lobby';
+          }
         }
       } catch (e) { /* geçersiz mesaj */ }
       this.broadcast();
     });
 
-    const close = () => { this.sessions.delete(server); this.broadcast(); };
+    const close = () => {
+      this.sessions.delete(server);
+      if (this.phase === 'starting') this.cancelStart();
+      if (Array.from(this.sessions.values()).every((s) => !s.playing)) {
+        this.resetReady();
+        this.phase = 'lobby';
+      }
+      this.broadcast();
+    };
     server.addEventListener('close', close);
     server.addEventListener('error', close);
 
-    server.send(JSON.stringify({ type: 'arena', you: uid, players: this.ranking() }));
+    server.send(JSON.stringify(this.snapshot(uid)));
     this.broadcast();
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  snapshot(you) {
+    return {
+      type: 'arena',
+      you: you || '',
+      phase: this.phase,
+      players: this.ranking(),
+      readyCount: Array.from(this.sessions.values()).filter((s) => s.ready).length,
+    };
   }
 
   ranking() {
     return Array.from(this.sessions.values())
       .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
-      .map((s, i) => ({ rank: i + 1, name: s.name, score: s.score, face: s.face }));
+      .map((s, i) => ({
+        rank: i + 1,
+        name: s.name,
+        score: s.score,
+        face: s.face,
+        ready: s.ready,
+        playing: s.playing,
+      }));
   }
 
-  broadcast() {
-    const msg = JSON.stringify({ type: 'arena', players: this.ranking() });
+  resetReady() {
+    for (const s of this.sessions.values()) { s.ready = false; s.playing = false; }
+  }
+
+  cancelStart() {
+    this.phase = 'lobby';
+    this.resetReady();
+    this.broadcastAll({ type: 'cancel' });
+  }
+
+  checkStart() {
+    const all = Array.from(this.sessions.values());
+    if (this.phase !== 'lobby' || all.length < 1) return;
+    if (all.every((s) => s.ready && !s.playing)) {
+      this.phase = 'starting';
+      const at = Date.now() + 2500;
+      this.broadcastAll({ type: 'start', at });
+    }
+  }
+
+  broadcastAll(obj) {
+    const msg = JSON.stringify(obj);
     for (const s of this.sessions.values()) {
       try { s.ws.send(msg); } catch (e) { /* kapalı soket */ }
     }
+  }
+
+  broadcast() {
+    this.broadcastAll(this.snapshot());
   }
 }
