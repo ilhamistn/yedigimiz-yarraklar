@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 11;
+  const APP_VERSION = 12;
 
   const STORY_LEVELS = [
     {
@@ -478,6 +478,7 @@
       jumping: false,
       airJumpsUsed: 0,
       eggs: [],
+      floaters: [],
       spawnTimer: 0.4 + Math.random() * 0.6,
       score: 0,
       distance: 0,
@@ -603,10 +604,32 @@
 
       const spacing = es * (1.7 + Math.random() * 0.7);
       for (let i = 0; i < count; i++) {
+        const moving = Math.random() < 0.35;
         s.eggs.push({
           x: W + 20 + i * (spacing + Math.random() * 25),
           counted: false,
           kind: Math.random() < 0.35 ? 'banana' : 'eggplant',
+          moving,
+          phase: Math.random() * Math.PI * 2,
+          freq: 1.6 + Math.random() * 1.8,
+          amp: moving ? es * (0.4 + Math.random() * 0.7) : 0,
+          lift: 0,
+          speedMul: moving ? 0.85 + Math.random() * 0.35 : 1,
+        });
+      }
+
+      // Zıplayınca toplanan donut'lar
+      if (Math.random() < 0.32) {
+        s.eggs.push({
+          x: W + 20 + spacing * (0.5 + Math.random() * 0.8),
+          counted: false,
+          kind: 'donut',
+          moving: false,
+          phase: 0,
+          freq: 0,
+          amp: 0,
+          lift: es * (1.55 + Math.random() * 0.4),
+          speedMul: 1,
         });
       }
 
@@ -626,27 +649,56 @@
 
     for (let i = s.eggs.length - 1; i >= 0; i--) {
       const egg = s.eggs[i];
-      egg.x -= s.speed * dt;
+      egg.lift = egg.kind === 'donut'
+        ? egg.lift
+        : (egg.amp || 0) * (0.5 + 0.5 * Math.sin(animTime * egg.freq + egg.phase));
+      egg.x -= s.speed * (egg.speedMul || 1) * dt;
 
-      if (!egg.counted && egg.x + es < cx) {
-        egg.counted = true;
-        s.score++;
-        $('liveScore').textContent = s.score;
-        if (currentMode === 'arena') reportArenaScore(s.score);
-        if (currentMode === 'story' && modeConfig && s.score >= modeConfig.target) {
-          completeStory();
+      const eggTop = g - es * 0.95 - egg.lift;
+      const eggBottom = g - egg.lift;
+      const overlapX = egg.x < cx + cw * 0.92 && egg.x + es * 0.9 > cx + cw * 0.08;
+      const overlapY = s.top < eggBottom - 4 && s.top + ch > eggTop + 4;
+
+      if (egg.kind === 'donut') {
+        // Zıplayıp değdiğinde +2 puan
+        if (!egg.counted && overlapX && overlapY) {
+          egg.counted = true;
+          egg.collected = true;
+          s.score += 2;
+          s.floaters.push({ x: cx, y: s.top - 8, text: '+2 🍩', life: 1 });
+          $('liveScore').textContent = s.score;
+          if (currentMode === 'arena') reportArenaScore(s.score);
+          if (currentMode === 'story' && modeConfig && s.score >= modeConfig.target) {
+            completeStory();
+            return;
+          }
+        }
+        if (!egg.counted && egg.x + es < cx) egg.counted = true; // kaçırıldı, puan yok
+      } else {
+        if (!egg.counted && egg.x + es < cx) {
+          egg.counted = true;
+          s.score++;
+          $('liveScore').textContent = s.score;
+          if (currentMode === 'arena') reportArenaScore(s.score);
+          if (currentMode === 'story' && modeConfig && s.score >= modeConfig.target) {
+            completeStory();
+            return;
+          }
+        }
+        if (overlapX && overlapY && !(currentMode === 'sandbox' && sandboxSettings.immortal)) {
+          gameOver();
           return;
         }
       }
-
-      const charBottom = s.top + ch;
-      const eggTop = g - es * 0.95;
-      if (egg.x < cx + cw * 0.92 && egg.x + es * 0.9 > cx + cw * 0.08) {
-        if (charBottom > eggTop + 4) {
-          if (!(currentMode === 'sandbox' && sandboxSettings.immortal)) { gameOver(); return; }
-        }
-      }
       if (egg.x < -es - 20) s.eggs.splice(i, 1);
+    }
+
+    // Yüzen puan yazıları
+    for (let i = s.floaters.length - 1; i >= 0; i--) {
+      const f = s.floaters[i];
+      f.life -= dt * 1.2;
+      f.y -= 34 * dt;
+      if (f.life <= 0) s.floaters.splice(i, 1);
     }
   }
 
@@ -743,29 +795,40 @@
       ctx.fillRect(x, g + (H - g) * 0.5, dash, 3);
     }
 
-    // ---- 🍆🍌 engeller: renkli rozet + kalın kontur ----
+    // ---- 🍆🍌 engeller + 🍩 donut'lar: renkli rozet + kalın kontur ----
     ctx.textBaseline = 'alphabetic';
     for (const egg of s.eggs) {
+      const donut = egg.kind === 'donut';
       const banana = egg.kind === 'banana';
-      const icon = banana ? '🍌' : '🍆';
+      const icon = donut ? '🍩' : banana ? '🍌' : '🍆';
+      const lift = egg.lift || 0;
       const bx = egg.x + es * 0.45;
-      const by = g - es * 0.5;
+      const by = g - es * 0.5 - lift;
       ctx.save();
-      ctx.shadowColor = banana ? 'rgba(245,158,11,0.6)' : 'rgba(124,58,237,0.6)';
-      ctx.shadowBlur = 12;
+      ctx.shadowColor = donut ? 'rgba(236,72,153,0.7)' : banana ? 'rgba(245,158,11,0.6)' : 'rgba(124,58,237,0.6)';
+      ctx.shadowBlur = donut ? 16 : 12;
       ctx.beginPath();
-      ctx.arc(bx, by, es * 0.66, 0, Math.PI * 2);
+      ctx.arc(bx, by, es * (donut ? 0.7 : 0.66), 0, Math.PI * 2);
       ctx.fillStyle = '#ffffff';
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.lineWidth = 3;
-      ctx.strokeStyle = banana ? '#f59e0b' : '#7c3aed';
+      ctx.strokeStyle = donut ? '#ec4899' : banana ? '#f59e0b' : '#7c3aed';
       ctx.stroke();
-      ctx.font = (banana ? es * 1.05 : es) + 'px sans-serif';
+      if (egg.moving) {
+        ctx.beginPath();
+        ctx.arc(bx, by, es * 0.78, 0, Math.PI * 2);
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(15,23,42,0.3)';
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.font = ((donut || banana) ? es * 1.05 : es) + 'px sans-serif';
       ctx.lineWidth = 2.5;
       ctx.strokeStyle = 'rgba(15,23,42,0.6)';
-      ctx.fillText(icon, egg.x, g - 2);
-      ctx.strokeText(icon, egg.x, g - 2);
+      ctx.fillText(icon, egg.x, g - 2 - lift);
+      ctx.strokeText(icon, egg.x, g - 2 - lift);
       ctx.restore();
     }
 
@@ -786,6 +849,20 @@
     }
 
     drawRunner(s.top, cw, ch, cx, g);
+
+    // Yüzen +2 🍩 yazıları
+    s.floaters.forEach((f) => {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, f.life);
+      ctx.font = 'bold 18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ec4899';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.strokeText(f.text, f.x, f.y);
+      ctx.fillText(f.text, f.x, f.y);
+      ctx.restore();
+    });
   }
 
   function drawGhost(x, top, img, name, tint) {
