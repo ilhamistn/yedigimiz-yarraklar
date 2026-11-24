@@ -307,6 +307,22 @@ export default {
       return json({ ok: true, eaten: updated.eaten, added: amount });
     }
 
+    // ---- Admin: kullanıcıya puan ekle ----
+    if (path === '/api/admin/coins' && method === 'POST') {
+      const admin = await adminOnly(request, env);
+      if (admin instanceof Response) return admin;
+      const body = await readBody(request);
+      if (!body || !Number.isInteger(body.id) || !Number.isInteger(body.amount)
+        || body.amount < 1 || body.amount > 10000) {
+        return fail('Geçersiz kullanıcı veya puan (1-10000).');
+      }
+      const target = await env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(body.id).first();
+      if (!target) return fail('Kullanıcı bulunamadı.', 404);
+      await env.DB.prepare('UPDATE users SET coins = coins + ? WHERE id = ?').bind(body.amount, body.id).run();
+      const updated = await env.DB.prepare('SELECT coins FROM users WHERE id = ?').bind(body.id).first();
+      return json({ ok: true, coins: updated.coins, added: body.amount });
+    }
+
     // ---- Admin: başka kullanıcının şifresini değiştir ----
     if (path === '/api/admin/password' && method === 'POST') {
       const admin = await adminOnly(request, env);

@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 30;
+  const APP_VERSION = 31;
 
   const SKINS = [
     { base: '#fde3c4', dark: '#e5b98f' },
@@ -402,6 +402,19 @@
     });
     actions.appendChild(passBtn);
 
+    const coinsBtn = document.createElement('button');
+    coinsBtn.className = 'mini-btn approve';
+    coinsBtn.textContent = '💰 Puan';
+    coinsBtn.addEventListener('click', () => {
+      adminTargetId = u.id;
+      $('adminCoinsBox').hidden = false;
+      $('adminCoinsTarget').textContent = u.username;
+      $('adminCoinsAmount').value = '50';
+      $('adminCoinsStatus').textContent = '';
+      $('adminCoinsStatus').style.color = '';
+    });
+    actions.appendChild(coinsBtn);
+
     row.append(rankEl, name, stats, actions);
     return row;
   }
@@ -457,6 +470,29 @@
       st.textContent = err.message;
     } finally {
       $('adminPassSave').disabled = false;
+    }
+  });
+
+  $('adminCoinsCancel').addEventListener('click', () => { $('adminCoinsBox').hidden = true; });
+  $('adminCoinsSave').addEventListener('click', async () => {
+    const amount = Number($('adminCoinsAmount').value);
+    const st = $('adminCoinsStatus');
+    st.style.color = '';
+    if (!Number.isInteger(amount) || amount < 1 || amount > 10000) {
+      st.textContent = 'Puan 1 ile 10000 arasında olmalı.';
+      return;
+    }
+    $('adminCoinsSave').disabled = true;
+    try {
+      const data = await api('/api/admin/coins', {
+        method: 'POST', body: { id: adminTargetId, amount },
+      });
+      st.style.color = '#86efac';
+      st.textContent = '✓ ' + data.added + ' 💰 eklendi. Yeni bakiye: ' + data.coins;
+    } catch (err) {
+      st.textContent = err.message;
+    } finally {
+      $('adminCoinsSave').disabled = false;
     }
   });
 

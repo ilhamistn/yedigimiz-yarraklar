@@ -263,6 +263,15 @@
           </div>
           <p id="adminPassStatus" class="error"></p>
         </div>
+        <div id="adminCoinsBox" class="admin-pass-box" hidden>
+          <label>💰 <span id="adminCoinsTarget"></span> için puan ekle</label>
+          <input type="number" id="adminCoinsAmount" min="1" max="10000" value="50" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn btn-primary" id="adminCoinsSave" style="flex:1;padding:10px">Ekle</button>
+            <button class="btn btn-outline" id="adminCoinsCancel" style="flex:1;padding:10px">Vazgeç</button>
+          </div>
+          <p id="adminCoinsStatus" class="error"></p>
+        </div>
         <div style="display:flex;gap:8px;margin-top:10px">
           <button class="btn btn-outline" id="adminRefreshBtn" style="flex:1;padding:10px">🔄 Yenile</button>
           <button class="btn btn-primary" id="adminBackBtn" style="flex:1;padding:10px">Geri Dön</button>
