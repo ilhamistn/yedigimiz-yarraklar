@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 33;
+  const APP_VERSION = 35;
 
   const LEADER_TITLES = [
     'Obsidyen Yarrak Bükücü',
@@ -318,8 +318,12 @@
           name.appendChild(title);
         }
         const stats = document.createElement('span');
-        stats.className = 'admin-stats';
-        stats.textContent = u.best + ' kaçış · ' + u.eaten + ' yeme';
+        stats.className = 'admin-stats leader-stats';
+        const line1 = document.createElement('span');
+        line1.textContent = '🏃 ' + u.best + ' en iyi · ' + u.total_dodged + ' toplam kaçış';
+        const line2 = document.createElement('span');
+        line2.textContent = '🍩' + u.donuts + ' · 💰' + u.coins + ' · 😵' + u.eaten + ' · 🎮' + u.games;
+        stats.append(line1, line2);
         row.append(rank, name, stats);
         list.appendChild(row);
       });

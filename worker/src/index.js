@@ -356,7 +356,7 @@ export default {
     // ---- Lider tablosu (herkese açık) ----
     if (path === '/api/leaderboard' && method === 'GET') {
       const { results } = await env.DB.prepare(
-        'SELECT username, best, games, eaten FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY best DESC, username ASC LIMIT 20'
+        'SELECT username, best, games, eaten, donuts, coins, total_dodged FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY best DESC, username ASC LIMIT 20'
       ).all();
       const mostEaten = await env.DB.prepare(
         'SELECT username, games, best, eaten FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY eaten DESC, username ASC LIMIT 1'
