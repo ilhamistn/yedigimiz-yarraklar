@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 9;
+  const APP_VERSION = 10;
 
   const STORY_LEVELS = [
     {
@@ -473,6 +473,7 @@
       top: groundY() - charH(),
       vy: 0,
       jumping: false,
+      airJumpsUsed: 0,
       eggs: [],
       spawnTimer: 0.4 + Math.random() * 0.6,
       score: 0,
@@ -507,9 +508,15 @@
 
   function jump() {
     if (!running || paused || !state) return;
-    if (!state.jumping) {
-      state.vy = -(currentMode === 'sandbox' ? sandboxSettings.jump : JUMP_V);
-      state.jumping = true;
+    const s = state;
+    const power = currentMode === 'sandbox' ? sandboxSettings.jump : JUMP_V;
+    if (!s.jumping) {
+      s.vy = -power;
+      s.jumping = true;
+      s.airJumpsUsed = 0;
+    } else if (s.airJumpsUsed < 1) {
+      s.airJumpsUsed++;
+      s.vy = -power * 0.85;
     }
   }
 
@@ -571,7 +578,7 @@
 
     s.vy += GRAVITY * dt;
     s.top += s.vy * dt;
-    if (s.top >= g - ch) { s.top = g - ch; s.vy = 0; s.jumping = false; }
+    if (s.top >= g - ch) { s.top = g - ch; s.vy = 0; s.jumping = false; s.airJumpsUsed = 0; }
 
     if (currentMode === 'sandbox') s.speed = sandboxSettings.speed;
     else if (currentMode === 'story' && modeConfig) s.speed = Math.min(700, modeConfig.speed + s.score * 4);
@@ -593,7 +600,11 @@
 
       const spacing = es * (1.7 + Math.random() * 0.7);
       for (let i = 0; i < count; i++) {
-        s.eggs.push({ x: W + 20 + i * (spacing + Math.random() * 25), counted: false });
+        s.eggs.push({
+          x: W + 20 + i * (spacing + Math.random() * 25),
+          counted: false,
+          kind: Math.random() < 0.35 ? 'banana' : 'eggplant',
+        });
       }
 
       let minGap, variance;
@@ -730,17 +741,19 @@
     }
 
     // ---- Patlıcanlar (beyaz zeminde net görünsün: gölge halka + kontur) ----
-    ctx.font = es + 'px sans-serif';
     ctx.textBaseline = 'alphabetic';
     ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(15,23,42,0.25)';
+    ctx.strokeStyle = 'rgba(15,23,42,0.28)';
     for (const egg of s.eggs) {
+      const banana = egg.kind === 'banana';
+      const icon = banana ? '🍌' : '🍆';
+      ctx.font = (banana ? es * 1.05 : es) + 'px sans-serif';
       ctx.beginPath();
       ctx.arc(egg.x + es * 0.45, g - es * 0.5, es * 0.62, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(15,23,42,0.10)';
+      ctx.fillStyle = banana ? 'rgba(217,119,6,0.16)' : 'rgba(15,23,42,0.10)';
       ctx.fill();
-      ctx.fillText('🍆', egg.x, g - 2);
-      ctx.strokeText('🍆', egg.x, g - 2);
+      ctx.fillText(icon, egg.x, g - 2);
+      ctx.strokeText(icon, egg.x, g - 2);
     }
 
     drawRunner(s.top, cw, ch, cx, g);
