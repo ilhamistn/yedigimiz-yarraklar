@@ -77,6 +77,7 @@
         </div>
         <button class="btn btn-outline" id="leaderBtn" style="width:100%;margin-top:10px">🏆 Lider Tablosu</button>
         <button class="btn btn-outline" id="adminBtn" hidden style="width:100%;margin-top:10px">🛡️ Admin Paneli</button>
+        <button class="btn btn-outline" id="appearanceBtn" style="width:100%;margin-top:10px">🎨 Karakter Özelleştir</button>
         <button class="btn btn-outline" id="settingsBtn" style="width:100%;margin-top:10px">⚙️ Ayarlar / Şifre Değiştir</button>
         <p class="hint">Zıpla: boşluk / ekrana dokun. Basılı tut = yüksek, kısa bas = alçak. Havada bir kez daha zıplayabilirsin.</p>
       </div>
@@ -167,6 +168,21 @@
       </div>
     </section>
 
+    <!-- ============ KARAKTER ÖZELLEŞTİRME ============ -->
+    <section id="appearanceScreen" class="screen">
+      <div class="auth-card">
+        <div class="logo-emoji">🎨</div>
+        <h2 class="over-title">Karakter Özelleştir</h2>
+        <p class="subtitle">Ten ve ayakkabı rengini seç. Değişiklik anında kaydedilir.</p>
+        <div class="swatch-label">Ten rengi</div>
+        <div class="swatches" id="skinSwatches"></div>
+        <div class="swatch-label">Ayakkabı rengi</div>
+        <div class="swatches" id="shoeSwatches"></div>
+        <p id="appearanceStatus" class="hint"></p>
+        <button class="btn btn-primary" id="appearanceBackBtn" style="width:100%;margin-top:16px">Geri Dön</button>
+      </div>
+    </section>
+
     <!-- ============ AYARLAR ============ -->
     <section id="settingsScreen" class="screen">
       <div class="auth-card">
@@ -186,12 +202,7 @@
           <p id="passError" class="error"></p>
           <button type="submit" class="btn btn-primary" id="savePassBtn">Şifreyi Kaydet</button>
         </form>
-        <div class="section-divider">KARAKTER GÖRÜNÜMÜ</div>
-        <div class="swatch-label">Ten rengi</div>
-        <div class="swatches" id="skinSwatches"></div>
-        <div class="swatch-label">Ayakkabı rengi</div>
-        <div class="swatches" id="shoeSwatches"></div>
-        <p id="appearanceStatus" class="hint"></p>
+        <button class="btn btn-outline" id="toAppearanceBtn" style="width:100%;margin-top:14px">🎨 Karakter Özelleştir</button>
         <button class="btn btn-outline" id="settingsBackBtn" style="width:100%;margin-top:10px">Geri Dön</button>
       </div>
     </section>
@@ -201,6 +212,15 @@
       <div class="over-card">
         <div class="logo-emoji">🏆</div>
         <h2 class="over-title">En Çok Yarraktan Kaçanlar</h2>
+        <div class="eaten-box">
+          <span class="eaten-title">🍆 Günlük modlarda yediğin yarrakları ekle</span>
+          <span class="eaten-hint">Sadece kendi sayına işlem yapabilirsin.</span>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <input type="number" id="eatenAmount" min="1" max="10000" value="1" />
+            <button class="btn btn-primary" id="eatenAddBtn" style="flex:1;padding:10px">Ekle</button>
+          </div>
+          <p id="eatenStatus" class="hint">Toplam yediğin yarrak: <strong id="myEaten">0</strong></p>
+        </div>
         <div id="worstBox" class="worst-box" hidden>
           <span class="worst-icon">😵</span>
           <div class="worst-info">

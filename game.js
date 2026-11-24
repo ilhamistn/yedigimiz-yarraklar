@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 27;
+  const APP_VERSION = 29;
 
   const SKINS = [
     { base: '#fde3c4', dark: '#e5b98f' },
@@ -111,6 +111,7 @@
     admin: $('adminScreen'),
     leader: $('leaderScreen'),
     settings: $('settingsScreen'),
+    appearance: $('appearanceScreen'),
     story: $('storyScreen'),
     storyResult: $('storyResultScreen'),
     arena: $('arenaScreen'),
@@ -265,10 +266,9 @@
   /* ============================================================
      Lider tablosu
      ============================================================ */
-  $('leaderBtn').addEventListener('click', async () => {
+  async function loadLeaderboard() {
     const list = $('leaderList');
     list.innerHTML = '<p class="hint">Yükleniyor...</p>';
-    show('leader');
     try {
       const data = await api('/api/leaderboard', { auth: false });
       list.innerHTML = '';
@@ -276,10 +276,11 @@
       if (data.mostEaten) {
         worstBox.hidden = false;
         $('worstName').textContent = data.mostEaten.username;
-        $('worstStats').textContent = data.mostEaten.games + ' kez yarrağı yedi · en iyi: ' + data.mostEaten.best;
+        $('worstStats').textContent = data.mostEaten.eaten + ' yarrak yedi · en iyi: ' + data.mostEaten.best;
       } else {
         worstBox.hidden = true;
       }
+      $('myEaten').textContent = (profile && profile.eaten) || 0;
       if (!data.users.length) {
         list.innerHTML = '<p class="leader-empty">Henüz kimse yarraktan kaçamadı.</p>';
         return;
@@ -294,15 +295,39 @@
         name.textContent = u.username;
         const stats = document.createElement('span');
         stats.className = 'admin-stats';
-        stats.textContent = u.best + ' yarrak · ' + u.games + ' oyun';
+        stats.textContent = u.best + ' kaçış · ' + u.eaten + ' yeme';
         row.append(rank, name, stats);
         list.appendChild(row);
       });
     } catch (err) {
       list.textContent = err.message;
     }
-  });
+  }
+
+  $('leaderBtn').addEventListener('click', () => { show('leader'); loadLeaderboard(); });
   $('leaderBackBtn').addEventListener('click', enterMenu);
+
+  $('eatenAddBtn').addEventListener('click', async () => {
+    const amount = Number($('eatenAmount').value);
+    const status = $('eatenStatus');
+    if (!Number.isInteger(amount) || amount < 1 || amount > 10000) {
+      status.textContent = 'Miktar 1 ile 10000 arasında olmalı.';
+      return;
+    }
+    $('eatenAddBtn').disabled = true;
+    try {
+      const data = await api('/api/eaten', { method: 'POST', body: { amount } });
+      if (profile) profile.eaten = data.eaten;
+      $('myEaten').textContent = data.eaten;
+      $('eatenAmount').value = '1';
+      status.innerHTML = '✓ ' + data.added + ' yarrak eklendi. Toplam: <strong>' + data.eaten + '</strong>';
+      loadLeaderboard();
+    } catch (err) {
+      status.textContent = err.message;
+    } finally {
+      $('eatenAddBtn').disabled = false;
+    }
+  });
 
   /* ============================================================
      Admin paneli: onayla / sil
@@ -466,11 +491,19 @@
     }
   }
 
+  function openAppearance() {
+    $('appearanceStatus').textContent = '';
+    renderSwatches();
+    show('appearance');
+  }
+
+  $('appearanceBtn').addEventListener('click', openAppearance);
+  $('toAppearanceBtn').addEventListener('click', openAppearance);
+  $('appearanceBackBtn').addEventListener('click', enterMenu);
+
   $('settingsBtn').addEventListener('click', () => {
     $('passError').textContent = '';
     $('passError').style.color = '';
-    $('appearanceStatus').textContent = '';
-    renderSwatches();
     show('settings');
   });
   $('settingsBackBtn').addEventListener('click', enterMenu);

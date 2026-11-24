@@ -39,6 +39,7 @@ function publicUser(row) {
     best: row.best,
     games: row.games,
     totalDodged: row.total_dodged,
+    eaten: row.eaten || 0,
     approved: row.approved === 1,
     storyLevel: row.story_level || 1,
     skinTone: row.skin_tone || 0,
@@ -208,7 +209,7 @@ export default {
       const isBest = score > user.best;
 
       await env.DB.prepare(
-        'UPDATE users SET games = games + 1, total_dodged = total_dodged + ?, best = MAX(best, ?) WHERE id = ?'
+        'UPDATE users SET games = games + 1, eaten = eaten + 1, total_dodged = total_dodged + ?, best = MAX(best, ?) WHERE id = ?'
       ).bind(score, score, user.id).run();
 
       const updated = await env.DB.prepare('SELECT best, games, total_dodged FROM users WHERE id = ?').bind(user.id).first();
@@ -255,6 +256,20 @@ export default {
       return json({ ok: true, skinTone: skin, shoeColor: shoe });
     }
 
+    // ---- Kullanıcı kendi yediği yarrak sayısını ekler ----
+    if (path === '/api/eaten' && method === 'POST') {
+      const user = await authenticate(request, env);
+      if (!user) return fail('Giriş yapmalısın.', 401);
+      const body = await readBody(request);
+      const amount = body && body.amount;
+      if (!Number.isInteger(amount) || amount < 1 || amount > 10000) {
+        return fail('Miktar 1 ile 10000 arasında olmalı.');
+      }
+      await env.DB.prepare('UPDATE users SET eaten = eaten + ? WHERE id = ?').bind(amount, user.id).run();
+      const updated = await env.DB.prepare('SELECT eaten FROM users WHERE id = ?').bind(user.id).first();
+      return json({ ok: true, eaten: updated.eaten, added: amount });
+    }
+
     // ---- Admin: başka kullanıcının şifresini değiştir ----
     if (path === '/api/admin/password' && method === 'POST') {
       const admin = await adminOnly(request, env);
@@ -288,11 +303,10 @@ export default {
     // ---- Lider tablosu (herkese açık) ----
     if (path === '/api/leaderboard' && method === 'GET') {
       const { results } = await env.DB.prepare(
-        'SELECT username, best, games FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY best DESC, username ASC LIMIT 20'
+        'SELECT username, best, games, eaten FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY best DESC, username ASC LIMIT 20'
       ).all();
-      // Her oyun "yarrağı yeme" ile bittiği için en çok oyun oynayan = en çok yiyen
       const mostEaten = await env.DB.prepare(
-        'SELECT username, games, best FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY games DESC, username ASC LIMIT 1'
+        'SELECT username, games, best, eaten FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY eaten DESC, username ASC LIMIT 1'
       ).first() || null;
       return json({ users: results, mostEaten });
     }
