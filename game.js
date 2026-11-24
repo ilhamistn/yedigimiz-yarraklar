@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 18;
+  const APP_VERSION = 19;
 
   const ROASTS = [
     'Sikim hıyar desem tuzla koşarsın.',
@@ -1066,16 +1066,17 @@
     const air = !state.onGround;
     const moving = running && !paused;
     const phase = animTime * 11;
-    const bob = moving && !air ? Math.abs(Math.sin(phase)) * h * 0.022 : 0;
+    const bob = moving && !air ? Math.abs(Math.sin(phase)) * h * 0.018 : 0;
     const y = top + bob;
-    const lean = moving && !air ? h * 0.07 : 0;
+    const lean = moving && !air ? h * 0.05 : 0;
     const cx = x + w / 2;
-    const headR = w * 0.3;
-    const headX = cx + lean * 1.2;
-    const headCy = y + headR + h * 0.02 - bob * 0.4;
-    // İnsan oranları: kalça gövdenin biraz üstünde, bacaklar toplam boyun yarısı
-    const hipY = y + h * 0.46;
-    const shoulderY = y + h * 0.28 + lean * 0.2;
+    const skin = '#f0a468';
+    const skinDark = '#d4803f';
+    const headR = w * 0.27;
+    const headX = cx + lean;
+    const headCy = y + headR + h * 0.01;
+    const shoulderY = y + h * 0.3;
+    const hipY = y + h * 0.56;
     const legLen = g - hipY;
     const thigh = legLen * 0.52;
     const shin = legLen * 0.52;
@@ -1106,8 +1107,6 @@
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-
-    // Squash & stretch: kalkışta uzama, inişte sıkışma
     const sq = state.squash || 0;
     const st = state.jumpStretch || 0;
     ctx.translate(cx, g);
@@ -1115,110 +1114,164 @@
     if (air) ctx.rotate(state.vy < 0 ? -0.1 : 0.1);
     ctx.translate(-cx, -g);
 
-    // Bacaklar: arkadaki bacak önce çizilir (derinlik), IK ile diz öne bükülür
-    for (const side of [-1, 1]) {
+    function drawLeg(side, far) {
       const p = phase + (side === -1 ? 0 : Math.PI);
       const sw = Math.sin(p), cw = Math.cos(p);
       const stance = cw <= 0;
-      const far = side === -1;
-      const hipX = cx + side * w * 0.1;
+      const hipX = cx + side * w * 0.12;
       const footX = hipX + sw * stride * (air ? 0.7 : 1);
       const footY = air
-        ? hipY + legLen * 0.62 - Math.max(0, cw) * h * 0.08
-        : (g - 2) - (stance ? 0 : cw * h * 0.16);
+        ? hipY + legLen * 0.58 - Math.max(0, cw) * h * 0.07
+        : (g - 3) - (stance ? 0 : cw * h * 0.14);
       const knee = elbowPoint(hipX, hipY, footX, footY, thigh, shin, -1);
-
       ctx.save();
-      if (far) ctx.globalAlpha = 0.72;
+      if (far) ctx.globalAlpha = 0.82;
 
-      // Uyluk (pantolon)
-      ctx.strokeStyle = far ? '#172554' : '#1e3a8a';
-      ctx.lineWidth = Math.max(5, w * 0.15);
-      ctx.beginPath();
-      ctx.moveTo(hipX, hipY);
-      ctx.lineTo(knee.x, knee.y);
-      ctx.stroke();
+      // Şort (uyluğu kapatır)
+      ctx.strokeStyle = far ? '#0b5d5a' : '#0f766e';
+      ctx.lineWidth = Math.max(7, w * 0.21);
+      ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(knee.x, knee.y); ctx.stroke();
 
       // Baldır
-      ctx.strokeStyle = far ? '#d9a566' : '#f1c27d';
-      ctx.lineWidth = Math.max(4, w * 0.115);
-      ctx.beginPath();
-      ctx.moveTo(knee.x, knee.y);
-      ctx.lineTo(footX, footY);
-      ctx.stroke();
+      ctx.strokeStyle = far ? skinDark : skin;
+      ctx.lineWidth = Math.max(5, w * 0.15);
+      ctx.beginPath(); ctx.moveTo(knee.x, knee.y); ctx.lineTo(footX, footY); ctx.stroke();
 
-      // Ayakkabı: adım yönüne göre hafif dönüş
+      // Beyaz çorap + kırmızı şeritler
+      const sx = knee.x + (footX - knee.x) * 0.62;
+      const sy = knee.y + (footY - knee.y) * 0.62;
+      ctx.strokeStyle = '#f8fafc';
+      ctx.lineWidth = Math.max(5, w * 0.15);
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(footX, footY - 1); ctx.stroke();
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = Math.max(1.5, w * 0.028);
+      for (const t of [0.25, 0.55]) {
+        const px = sx + (footX - sx) * t, py = sy + (footY - sy) * t;
+        ctx.beginPath();
+        ctx.moveTo(px - w * 0.07, py);
+        ctx.lineTo(px + w * 0.07, py);
+        ctx.stroke();
+      }
+
+      // Kahverengi ayakkabı + beyaz taban
       ctx.save();
       ctx.translate(footX, footY);
-      ctx.rotate(sw * 0.22);
-      ctx.fillStyle = '#111827';
-      ctx.beginPath();
-      ctx.ellipse(w * 0.04, 0, w * 0.14, Math.max(2, h * 0.028), 0, 0, Math.PI * 2);
+      ctx.rotate(sw * 0.18);
+      ctx.fillStyle = '#f8fafc';
+      roundRect(-w * 0.17, -h * 0.022, w * 0.35, h * 0.055, h * 0.02);
+      ctx.fill();
+      ctx.fillStyle = '#78350f';
+      roundRect(-w * 0.16, -h * 0.055, w * 0.32, h * 0.065, h * 0.02);
       ctx.fill();
       ctx.restore();
       ctx.restore();
     }
 
-    // Kollar: bacakların ters yönde, dirsekten bükülü
-    for (const side of [-1, 1]) {
+    function drawArm(side, far) {
       const p = phase + (side === -1 ? Math.PI : 0);
       const sw = Math.sin(p);
-      const shX = cx + side * w * 0.22 + lean * 0.5;
+      const shX = cx + side * w * 0.3 + lean * 0.5;
+      const shY = shoulderY + h * 0.02;
       let elX, elY, handX, handY;
       if (air) {
-        // Havada kollar yukarı kalkar
-        elX = shX + side * w * 0.12 + sw * w * 0.05;
-        elY = shoulderY - h * 0.03;
+        elX = shX + side * w * 0.1 + sw * w * 0.04;
+        elY = shY - h * 0.04;
         handX = elX + side * w * 0.05;
-        handY = elY - h * 0.17;
+        handY = elY - h * 0.16;
       } else {
-        elX = shX + sw * w * 0.3;
-        elY = shoulderY + h * 0.14;
-        handX = elX - sw * w * 0.1 + w * 0.09;
-        handY = elY - h * 0.09;
+        elX = shX + sw * w * 0.26;
+        elY = shY + h * 0.13;
+        handX = elX - sw * w * 0.08 + w * 0.05;
+        handY = elY - h * 0.08;
       }
-      ctx.strokeStyle = '#f1c27d';
-      ctx.lineWidth = Math.max(4, w * 0.105);
-      ctx.beginPath();
-      ctx.moveTo(shX, shoulderY);
-      ctx.lineTo(elX, elY);
-      ctx.stroke();
-      ctx.lineWidth = Math.max(3, w * 0.085);
-      ctx.beginPath();
-      ctx.moveTo(elX, elY);
-      ctx.lineTo(handX, handY);
-      ctx.stroke();
-      ctx.fillStyle = '#f1c27d';
-      ctx.beginPath();
-      ctx.arc(handX, handY, w * 0.055, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.save();
+      if (far) ctx.globalAlpha = 0.85;
+      ctx.fillStyle = far ? skinDark : skin;
+      ctx.strokeStyle = ctx.fillStyle;
+      ctx.beginPath(); ctx.arc(shX, shY, w * 0.13, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = Math.max(6, w * 0.16);
+      ctx.beginPath(); ctx.moveTo(shX, shY); ctx.lineTo(elX, elY); ctx.stroke();
+      ctx.lineWidth = Math.max(5, w * 0.13);
+      ctx.beginPath(); ctx.moveTo(elX, elY); ctx.lineTo(handX, handY); ctx.stroke();
+      ctx.beginPath(); ctx.arc(handX, handY, w * 0.075, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     }
 
-    // Gövde
-    ctx.fillStyle = '#22d3ee';
-    roundRect(cx - w * 0.27 + lean * 0.3, shoulderY - h * 0.04, w * 0.54, hipY - shoulderY + h * 0.1, w * 0.16);
+    // Derinlik: arka uzuvlar önce
+    drawLeg(-1, true);
+    drawArm(-1, true);
+
+    // Kaslı gövde
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.34, shoulderY);
+    ctx.quadraticCurveTo(cx - w * 0.42, y + h * 0.42, cx - w * 0.2, hipY);
+    ctx.lineTo(cx + w * 0.2, hipY);
+    ctx.quadraticCurveTo(cx + w * 0.42, y + h * 0.42, cx + w * 0.34, shoulderY);
+    ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = skinDark;
+    ctx.lineWidth = Math.max(1, w * 0.018);
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.24, shoulderY + h * 0.07);
+    ctx.quadraticCurveTo(cx - w * 0.08, shoulderY + h * 0.12, cx - w * 0.02, shoulderY + h * 0.06);
+    ctx.moveTo(cx + w * 0.24, shoulderY + h * 0.07);
+    ctx.quadraticCurveTo(cx + w * 0.08, shoulderY + h * 0.12, cx + w * 0.02, shoulderY + h * 0.06);
+    ctx.moveTo(cx, shoulderY + h * 0.11);
+    ctx.lineTo(cx, y + h * 0.44);
     ctx.stroke();
+
+    // Ön uzuvlar
+    drawLeg(1, false);
+    drawArm(1, false);
 
     // Kafa
     ctx.save();
     ctx.beginPath();
     ctx.arc(headX, headCy, headR, 0, Math.PI * 2);
     ctx.closePath();
-    ctx.fillStyle = '#f1c27d';
+    ctx.fillStyle = skin;
     ctx.fill();
     ctx.clip();
     if (faceImg && faceImg.complete && faceImg.naturalWidth) {
       ctx.drawImage(faceImg, headX - headR, headCy - headR, headR * 2, headR * 2);
     } else {
-      ctx.font = headR * 1.6 + 'px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('😄', headX, headCy + headR * 0.08);
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.ellipse(headX - headR * 0.35, headCy - headR * 0.05, headR * 0.22, headR * 0.17, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(headX + headR * 0.35, headCy - headR * 0.05, headR * 0.22, headR * 0.17, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#1f2937';
+      ctx.beginPath(); ctx.arc(headX - headR * 0.3, headCy - headR * 0.04, headR * 0.09, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(headX + headR * 0.4, headCy - headR * 0.04, headR * 0.09, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#3f1d10';
+      ctx.lineWidth = Math.max(1.5, w * 0.03);
+      ctx.beginPath();
+      ctx.moveTo(headX - headR * 0.58, headCy - headR * 0.33);
+      ctx.lineTo(headX - headR * 0.14, headCy - headR * 0.22);
+      ctx.moveTo(headX + headR * 0.16, headCy - headR * 0.22);
+      ctx.lineTo(headX + headR * 0.58, headCy - headR * 0.33);
+      ctx.stroke();
+      ctx.strokeStyle = '#9a4a22';
+      ctx.lineWidth = Math.max(1.2, w * 0.02);
+      ctx.beginPath();
+      ctx.arc(headX, headCy + headR * 0.18, headR * 0.38, 0.2, Math.PI - 0.2);
+      ctx.stroke();
     }
     ctx.restore();
+
+    if (!(faceImg && faceImg.complete && faceImg.naturalWidth)) {
+      // Koyu, dik saçlar
+      ctx.fillStyle = '#3f1d10';
+      ctx.beginPath();
+      ctx.moveTo(headX - headR * 0.98, headCy - headR * 0.2);
+      ctx.quadraticCurveTo(headX - headR * 1.05, headCy - headR * 1.1, headX - headR * 0.25, headCy - headR * 1.0);
+      ctx.lineTo(headX + headR * 0.05, headCy - headR * 1.38);
+      ctx.lineTo(headX + headR * 0.38, headCy - headR * 0.95);
+      ctx.quadraticCurveTo(headX + headR * 1.1, headCy - headR * 0.9, headX + headR * 0.95, headCy - headR * 0.1);
+      ctx.quadraticCurveTo(headX + headR * 0.5, headCy - headR * 0.55, headX, headCy - headR * 0.5);
+      ctx.quadraticCurveTo(headX - headR * 0.5, headCy - headR * 0.5, headX - headR * 0.98, headCy - headR * 0.2);
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.restore();
   }
 
