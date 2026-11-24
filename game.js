@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 23;
+  const APP_VERSION = 24;
 
   const ROASTS = [
     'Sikim hıyar desem tuzla koşarsın.',
@@ -754,14 +754,24 @@
         : (egg.amp || 0) * (0.5 + 0.5 * Math.sin(animTime * egg.freq + egg.phase));
       egg.x -= s.speed * (egg.speedMul || 1) * dt;
 
-      const eggTop = g - es * 0.95 - egg.lift;
-      const eggBottom = g - egg.lift;
-      const overlapX = egg.x < cx + cw * 0.92 && egg.x + es * 0.9 > cx + cw * 0.08;
-      const overlapY = s.top < eggBottom - 4 && s.top + ch > eggTop + 4;
+      const eggCx = egg.x + es * 0.45;
+      const eggCy = g - es * 0.5 - egg.lift;
+      const bodyCx = cx + cw * 0.5;
+
+      // Engel çarpışması: emojinin GÖRSEL merkezine göre daraltılmış kutu.
+      // Eski geniş kutu yüzünden karakter patlıcana değmeden ölüyordu.
+      const hitX = Math.abs(eggCx - bodyCx) < es * 0.3 + cw * 0.3;
+      const hitY = (s.top + ch * 0.25) < eggCy + es * 0.3
+        && (s.top + ch * 0.95) > eggCy - es * 0.3;
+
+      // Donut toplama: ölçülü ama biraz daha toleranslı
+      const grabX = Math.abs(eggCx - bodyCx) < es * 0.45 + cw * 0.42;
+      const grabY = (s.top + ch * 0.1) < eggCy + es * 0.5
+        && (s.top + ch) > eggCy - es * 0.5;
 
       if (egg.kind === 'donut') {
         // Zıplayıp değdiğinde +2 puan
-        if (!egg.counted && overlapX && overlapY) {
+        if (!egg.counted && grabX && grabY) {
           egg.counted = true;
           egg.collected = true;
           s.score += 2;
@@ -785,7 +795,7 @@
             return;
           }
         }
-        if (overlapX && overlapY && !(currentMode === 'sandbox' && sandboxSettings.immortal)) {
+        if (hitX && hitY && !(currentMode === 'sandbox' && sandboxSettings.immortal)) {
           gameOver();
           return;
         }
