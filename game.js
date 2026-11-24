@@ -5,7 +5,16 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 31;
+  const APP_VERSION = 33;
+
+  const LEADER_TITLES = [
+    'Obsidyen Yarrak Bükücü',
+    'Sauronun Tek Yarrağı',
+    'Kratosun Son Taşşağı',
+    'Yarrak Kenobi',
+    '404 Yarrak Not Found',
+    'Kozmik Yarrak Kontu',
+  ];
 
   const SKINS = [
     { base: '#fde3c4', dark: '#e5b98f' },
@@ -299,9 +308,15 @@
         row.className = 'admin-row leader-row';
         const rank = document.createElement('span');
         rank.className = 'admin-rank';
-        rank.textContent = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1);
+        rank.textContent = '#' + (i + 1);
         const name = document.createElement('strong');
         name.textContent = u.username;
+        if (i < LEADER_TITLES.length) {
+          const title = document.createElement('span');
+          title.className = 'leader-title rank-' + (i + 1);
+          title.textContent = LEADER_TITLES[i];
+          name.appendChild(title);
+        }
         const stats = document.createElement('span');
         stats.className = 'admin-stats';
         stats.textContent = u.best + ' kaçış · ' + u.eaten + ' yeme';
