@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 16;
+  const APP_VERSION = 17;
 
   const ROASTS = [
     'Sikim hıyar desem tuzla koşarsın.',
@@ -436,15 +436,20 @@
   const canvas = $('gameCanvas');
   const ctx = canvas.getContext('2d');
   let W = 800, H = 400, dpr = 1;
+  let skyGradient = null;
 
   function resizeCanvas() {
     const r = $('canvasWrap').getBoundingClientRect();
     W = Math.max(320, r.width);
     H = Math.max(220, r.height);
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    skyGradient = ctx.createLinearGradient(0, 0, 0, H);
+    skyGradient.addColorStop(0, '#ffffff');
+    skyGradient.addColorStop(0.7, '#f8fafc');
+    skyGradient.addColorStop(1, '#e2e8f0');
     if (state && state.onGround) state.top = groundY() - charH();
   }
   window.addEventListener('resize', resizeCanvas);
@@ -476,6 +481,7 @@
   let arenaReady = false;
   let arenaCountdownTimer = null;
   let arenaPlayers = [];
+  let lastArenaRender = 0;
   const arenaFaceImgs = {};
   const FIRST_HEAD_START_SEC = 0.5;
   const SANDBOX_KEY = 'yy_sandbox_v1';
@@ -805,6 +811,44 @@
   }
 
   /* ---------- Çizim ---------- */
+  // Emoji'leri bir kez çizip offscreen canvas'a önbelleğe alıyoruz.
+  // Her karede shadowBlur + strokeText çalıştırmak mobilde ciddi takılma yapıyordu.
+  const emojiCache = new Map();
+  function emojiSprite(icon, size) {
+    const key = icon + '|' + Math.round(size);
+    let sp = emojiCache.get(key);
+    if (sp) return sp;
+    const pad = Math.ceil(size * 0.4);
+    const side = Math.ceil(size * 1.7) + pad * 2;
+    const c = document.createElement('canvas');
+    c.width = c.height = side;
+    const g2 = c.getContext('2d');
+    const baseline = size + pad;
+    g2.font = size + 'px sans-serif';
+    g2.textBaseline = 'alphabetic';
+    g2.lineJoin = 'round';
+    g2.lineWidth = Math.max(3, size * 0.07);
+    g2.strokeStyle = 'rgba(255,255,255,0.95)';
+    g2.shadowColor = 'rgba(15,23,42,0.28)';
+    g2.shadowBlur = 6;
+    g2.shadowOffsetY = 2;
+    g2.strokeText(icon, pad, baseline);
+    g2.shadowBlur = 0;
+    g2.shadowOffsetY = 0;
+    g2.lineWidth = Math.max(1.2, size * 0.025);
+    g2.strokeStyle = 'rgba(15,23,42,0.35)';
+    g2.strokeText(icon, pad, baseline);
+    g2.fillText(icon, pad, baseline);
+    sp = { canvas: c, pad, baseline };
+    if (emojiCache.size > 24) emojiCache.clear();
+    emojiCache.set(key, sp);
+    return sp;
+  }
+  function drawEmoji(icon, size, x, baselineY) {
+    const sp = emojiSprite(icon, size);
+    ctx.drawImage(sp.canvas, x - sp.pad, baselineY - sp.baseline);
+  }
+
   function roundRect(x, y, w, h, r) {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -821,12 +865,8 @@
     const cw = charW(), ch = charH(), cx = charX();
     const es = eggSize();
 
-    // ---- Beyaz gökyüzü ----
-    const sky = ctx.createLinearGradient(0, 0, 0, H);
-    sky.addColorStop(0, '#ffffff');
-    sky.addColorStop(0.7, '#f8fafc');
-    sky.addColorStop(1, '#e2e8f0');
-    ctx.fillStyle = sky;
+    // ---- Beyaz gökyüzü (gradyan önbellekte) ----
+    ctx.fillStyle = skyGradient || '#ffffff';
     ctx.fillRect(0, 0, W, H);
 
     // ---- Bulutlar (yavaş paralaks) ----
@@ -868,14 +908,12 @@
     for (let x = -treeStep - treeOff; x < W + treeStep; x += treeStep) {
       const th = H * 0.15;
       ctx.fillStyle = '#4ade80';
-      ctx.fillRect(x + 26, g - th * 0.35, 5, th * 0.35);
       ctx.beginPath();
+      ctx.rect(x + 26, g - th * 0.35, 5, th * 0.35);
       ctx.moveTo(x + 28, g - th);
       ctx.lineTo(x + 8, g - th * 0.18);
       ctx.lineTo(x + 48, g - th * 0.18);
       ctx.closePath();
-      ctx.fill();
-      ctx.beginPath();
       ctx.moveTo(x + 28, g - th * 0.78);
       ctx.lineTo(x + 12, g - th * 0.05);
       ctx.lineTo(x + 44, g - th * 0.05);
@@ -897,7 +935,7 @@
       ctx.fillRect(x, g + (H - g) * 0.5, dash, 3);
     }
 
-    // ---- 🍆🍌🍩 emojiler: halkasız, beyaz kontur + yumuşak gölge ----
+    // ---- 🍆🍌🍩 emojiler: önbelleğe alınmış sprite'lar ----
     ctx.textBaseline = 'alphabetic';
     for (const egg of s.eggs) {
       const donut = egg.kind === 'donut';
@@ -905,21 +943,8 @@
       const icon = donut ? '🍩' : banana ? '🍌' : '🍆';
       const lift = egg.lift || 0;
       const ey = g - 2 - lift;
-      ctx.save();
-      ctx.font = ((donut || banana) ? es * 1.12 : es * 1.08) + 'px sans-serif';
-      ctx.lineWidth = 4;
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
-      ctx.shadowColor = 'rgba(15,23,42,0.28)';
-      ctx.shadowBlur = 7;
-      ctx.shadowOffsetY = 2;
-      ctx.strokeText(icon, egg.x, ey);
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetY = 0;
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = 'rgba(15,23,42,0.35)';
-      ctx.strokeText(icon, egg.x, ey);
-      ctx.fillText(icon, egg.x, ey);
+      const size = (donut || banana) ? es * 1.12 : es * 1.08;
+      drawEmoji(icon, size, egg.x, ey);
 
       // Hareketli engeller için küçük yön işaretleri (halka yerine)
       if (egg.moving) {
@@ -933,7 +958,6 @@
         ctx.lineTo(ax, ey + es * 0.42);
         ctx.stroke();
       }
-      ctx.restore();
     }
 
     // ---- Arenadaki diğer oyuncuların karakterleri ----
@@ -1221,7 +1245,13 @@
       arenaWs.onmessage = (e) => {
         try {
           const m = JSON.parse(e.data);
-          if (m.type === 'arena') renderArena(m.players, m.phase, m.readyCount);
+          if (m.type === 'arena') {
+            const t = performance.now();
+            if (t - lastArenaRender > 100) {
+              renderArena(m.players, m.phase, m.readyCount);
+              lastArenaRender = t;
+            }
+          }
           else if (m.type === 'start') showArenaCountdown(m.at);
           else if (m.type === 'cancel') {
             clearArenaCountdown();
