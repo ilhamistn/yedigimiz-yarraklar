@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 12;
+  const APP_VERSION = 13;
 
   const STORY_LEVELS = [
     {
@@ -904,18 +904,37 @@
     ctx.restore();
   }
 
+  // İki parçalı bacak için diz noktası (law of cosines)
+  function elbowPoint(hx, hy, fx, fy, l1, l2, bend) {
+    const dx = fx - hx, dy = fy - hy;
+    const raw = Math.sqrt(dx * dx + dy * dy) || 1;
+    const d = Math.max(Math.abs(l1 - l2) + 0.5, Math.min(l1 + l2 - 0.5, raw));
+    const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
+    const hh = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+    const ux = dx / raw, uy = dy / raw;
+    return {
+      x: hx + ux * a - uy * hh * bend,
+      y: hy + uy * a + ux * hh * bend,
+    };
+  }
+
   function drawRunner(top, w, h, x, g) {
     const air = state.jumping;
     const moving = running && !paused;
-    const phase = animTime * 12;
-    const bob = moving && !air ? Math.abs(Math.sin(phase)) * h * 0.025 : 0;
+    const phase = animTime * 11;
+    const bob = moving && !air ? Math.abs(Math.sin(phase)) * h * 0.022 : 0;
     const y = top + bob;
+    const lean = moving && !air ? h * 0.07 : 0;
     const cx = x + w / 2;
     const headR = w * 0.3;
-    const headCy = y + headR + h * 0.02;
+    const headX = cx + lean * 1.2;
+    const headCy = y + headR + h * 0.02 - bob * 0.4;
     const hipY = y + h * 0.52;
-    const shoulderY = y + h * 0.3;
+    const shoulderY = y + h * 0.3 + lean * 0.2;
     const legLen = g - hipY;
+    const thigh = legLen * 0.53;
+    const shin = legLen * 0.53;
+    const stride = w * 0.7;
 
     // Yer gölgesi
     ctx.save();
@@ -943,58 +962,72 @@
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Bacaklar: kalça -> diz -> ayak, dönüşümlü adım
+    // Bacaklar: ayak yörüngesi + IK ile diz bükülmesi
     for (const side of [-1, 1]) {
       const p = phase + (side === -1 ? 0 : Math.PI);
-      const s = Math.sin(p), c = Math.cos(p);
+      const sw = Math.sin(p), cw = Math.cos(p);
+      const stance = cw <= 0;
       const hipX = cx + side * w * 0.11;
-      const footX = hipX + s * w * 0.6;
-      const lift = Math.max(0, c) * h * 0.16;
-      const footY = (air ? hipY + legLen * 0.65 : g - 2) - lift;
-      const kneeX = (hipX + footX) / 2 + side * w * 0.05;
-      const kneeY = (hipY + footY) / 2 + h * 0.03;
+      const footX = hipX + sw * stride * (air ? 0.65 : 1);
+      const footY = air
+        ? hipY + legLen * 0.6 - Math.max(0, cw) * h * 0.1
+        : (g - 2) - (stance ? 0 : cw * h * 0.2);
+      const knee = elbowPoint(hipX, hipY, footX, footY, thigh, shin, -1);
 
       ctx.strokeStyle = '#1e3a8a';
       ctx.lineWidth = Math.max(5, w * 0.17);
       ctx.beginPath();
       ctx.moveTo(hipX, hipY);
-      ctx.lineTo(kneeX, kneeY);
+      ctx.lineTo(knee.x, knee.y);
       ctx.stroke();
 
       ctx.strokeStyle = '#f1c27d';
-      ctx.lineWidth = Math.max(4, w * 0.13);
+      ctx.lineWidth = Math.max(4, w * 0.125);
       ctx.beginPath();
-      ctx.moveTo(kneeX, kneeY);
+      ctx.moveTo(knee.x, knee.y);
       ctx.lineTo(footX, footY);
       ctx.stroke();
 
+      // Ayakkabı: yere değerken topuktan parmağa yuvarlanır
+      ctx.save();
+      ctx.translate(footX, footY);
+      ctx.rotate(stance ? (sw < -0.3 ? -0.35 : 0.12) : -0.28);
       ctx.fillStyle = '#111827';
       ctx.beginPath();
-      ctx.ellipse(footX + 2, footY, w * 0.13, h * 0.03, 0, 0, Math.PI * 2);
+      ctx.ellipse(w * 0.05, 0, w * 0.17, Math.max(2, h * 0.03), 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     }
 
-    // Kollar: bacakların ters yönde, dirsekten bükük
+    // Kollar: bacakların ters yönde, dirsekten bükülü
     for (const side of [-1, 1]) {
       const p = phase + (side === -1 ? Math.PI : 0);
-      const s = Math.sin(p);
-      const shX = cx + side * w * 0.25;
-      const elX = shX + s * w * 0.22;
-      const elY = shoulderY + h * 0.12;
-      const handX = elX - s * w * 0.06;
-      const handY = elY - h * 0.06;
+      const sw = Math.sin(p);
+      const shX = cx + side * w * 0.22 + lean * 0.5;
+      const elX = shX + sw * w * 0.3;
+      const elY = shoulderY + h * 0.14;
+      const handX = elX - sw * w * 0.1 + w * 0.09;
+      const handY = elY - h * 0.09;
       ctx.strokeStyle = '#f1c27d';
-      ctx.lineWidth = Math.max(4, w * 0.1);
+      ctx.lineWidth = Math.max(4, w * 0.105);
       ctx.beginPath();
       ctx.moveTo(shX, shoulderY);
       ctx.lineTo(elX, elY);
+      ctx.stroke();
+      ctx.lineWidth = Math.max(3, w * 0.085);
+      ctx.beginPath();
+      ctx.moveTo(elX, elY);
       ctx.lineTo(handX, handY);
       ctx.stroke();
+      ctx.fillStyle = '#f1c27d';
+      ctx.beginPath();
+      ctx.arc(handX, handY, w * 0.055, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     // Gövde
     ctx.fillStyle = '#22d3ee';
-    roundRect(cx - w * 0.27, shoulderY - h * 0.04, w * 0.54, hipY - shoulderY + h * 0.1, w * 0.16);
+    roundRect(cx - w * 0.27 + lean * 0.3, shoulderY - h * 0.04, w * 0.54, hipY - shoulderY + h * 0.1, w * 0.16);
     ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,0.25)';
     ctx.lineWidth = 2;
@@ -1003,18 +1036,18 @@
     // Kafa
     ctx.save();
     ctx.beginPath();
-    ctx.arc(cx, headCy, headR, 0, Math.PI * 2);
+    ctx.arc(headX, headCy, headR, 0, Math.PI * 2);
     ctx.closePath();
     ctx.fillStyle = '#f1c27d';
     ctx.fill();
     ctx.clip();
     if (faceImg && faceImg.complete && faceImg.naturalWidth) {
-      ctx.drawImage(faceImg, cx - headR, headCy - headR, headR * 2, headR * 2);
+      ctx.drawImage(faceImg, headX - headR, headCy - headR, headR * 2, headR * 2);
     } else {
       ctx.font = headR * 1.6 + 'px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('😄', cx, headCy + headR * 0.08);
+      ctx.fillText('😄', headX, headCy + headR * 0.08);
     }
     ctx.restore();
     ctx.restore();
