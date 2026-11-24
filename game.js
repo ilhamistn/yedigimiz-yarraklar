@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 21;
+  const APP_VERSION = 22;
 
   const ROASTS = [
     'Sikim hıyar desem tuzla koşarsın.',
@@ -1079,7 +1079,9 @@
     const headCy = y + headR + h * 0.01;
     const shoulderY = y + h * 0.3;
     const hipY = y + h * 0.56;
-    const legLen = g - hipY;
+    // Bacak uzunluğu SABİT olmalı: yoksa zıplarken kalça yükseldikçe
+    // "yer mesafesi" de büyür ve ayaklar yerde yapışık kalır.
+    const legLen = h * 0.44;
     const thigh = legLen * 0.52;
     const shin = legLen * 0.52;
     const stride = legLen * 0.28;
@@ -1124,7 +1126,7 @@
       // Havada bacak neredeyse tam uzatılır: diz gereğinden fazla kırılmaz
       const footX = hipX + (air ? side * w * 0.06 + sw * stride * 0.3 : sw * stride);
       const footY = air
-        ? hipY + legLen * 0.93 - Math.max(0, cw) * h * 0.03
+        ? hipY + legLen * 0.88 - Math.max(0, cw) * h * 0.03
         : (g - 3) - (stance ? 0 : cw * h * 0.14);
       const knee = elbowPoint(hipX, hipY, footX, footY, thigh, shin, -1);
       ctx.save();
