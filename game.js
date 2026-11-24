@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 10;
+  const APP_VERSION = 11;
 
   const STORY_LEVELS = [
     {
@@ -461,6 +461,9 @@
   let arenaWs = null;
   let arenaReady = false;
   let arenaCountdownTimer = null;
+  let arenaPlayers = [];
+  const arenaFaceImgs = {};
+  const FIRST_HEAD_START_SEC = 0.5;
   const SANDBOX_KEY = 'yy_sandbox_v1';
   let sandboxSettings = { speed: 300, gap: 1.0, jump: 780, immortal: false };
   try {
@@ -740,23 +743,88 @@
       ctx.fillRect(x, g + (H - g) * 0.5, dash, 3);
     }
 
-    // ---- Patlıcanlar (beyaz zeminde net görünsün: gölge halka + kontur) ----
+    // ---- 🍆🍌 engeller: renkli rozet + kalın kontur ----
     ctx.textBaseline = 'alphabetic';
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(15,23,42,0.28)';
     for (const egg of s.eggs) {
       const banana = egg.kind === 'banana';
       const icon = banana ? '🍌' : '🍆';
-      ctx.font = (banana ? es * 1.05 : es) + 'px sans-serif';
+      const bx = egg.x + es * 0.45;
+      const by = g - es * 0.5;
+      ctx.save();
+      ctx.shadowColor = banana ? 'rgba(245,158,11,0.6)' : 'rgba(124,58,237,0.6)';
+      ctx.shadowBlur = 12;
       ctx.beginPath();
-      ctx.arc(egg.x + es * 0.45, g - es * 0.5, es * 0.62, 0, Math.PI * 2);
-      ctx.fillStyle = banana ? 'rgba(217,119,6,0.16)' : 'rgba(15,23,42,0.10)';
+      ctx.arc(bx, by, es * 0.66, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
       ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = banana ? '#f59e0b' : '#7c3aed';
+      ctx.stroke();
+      ctx.font = (banana ? es * 1.05 : es) + 'px sans-serif';
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = 'rgba(15,23,42,0.6)';
       ctx.fillText(icon, egg.x, g - 2);
       ctx.strokeText(icon, egg.x, g - 2);
+      ctx.restore();
+    }
+
+    // ---- Arenadaki diğer oyuncuların karakterleri ----
+    if (currentMode === 'arena' && arenaPlayers.length) {
+      const firstJoin = Math.min.apply(null, arenaPlayers.map((p) => p.joinIndex || 0));
+      const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#ec4899'];
+      let gi = 0;
+      arenaPlayers.forEach((p) => {
+        if (profile && p.name === profile.username) return;
+        const diff = (p.score || 0) - s.score;
+        let gx = cx + diff * es * 2.2;
+        if ((p.joinIndex || 0) === firstJoin) gx += FIRST_HEAD_START_SEC * s.speed;
+        gx = Math.max(-30, Math.min(W - 30, gx));
+        drawGhost(gx, g - ch * 0.62, arenaFaceImgs[p.name], p.name, colors[gi % colors.length]);
+        gi++;
+      });
     }
 
     drawRunner(s.top, cw, ch, cx, g);
+  }
+
+  function drawGhost(x, top, img, name, tint) {
+    const w = charW() * 0.62;
+    const h = charH() * 0.62;
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(x + w * 0.3, groundY() + 2, w * 0.45, h * 0.04, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = tint;
+    roundRect(x + w * 0.05, top + h * 0.4, w * 0.5, h * 0.45, w * 0.16);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + w * 0.3, top + h * 0.24, w * 0.28, 0, Math.PI * 2);
+    ctx.fillStyle = '#f1c27d';
+    ctx.fill();
+    ctx.clip();
+    if (img && img.complete && img.naturalWidth) {
+      ctx.drawImage(img, x + w * 0.02, top - h * 0.04, w * 0.56, w * 0.56);
+    } else {
+      ctx.font = (w * 0.45) + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('😀', x + w * 0.3, top + h * 0.24);
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    const tw = ((ctx.measureText && ctx.measureText(name)) || {}).width || name.length * 6;
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(x + w * 0.3 - tw / 2 - 4, top - 18, tw + 8, 15);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(name, x + w * 0.3, top - 6);
+    ctx.restore();
   }
 
   function drawRunner(top, w, h, x, g) {
@@ -968,12 +1036,28 @@
   }
 
   function renderArena(players, phase, readyCount) {
+    arenaPlayers = players || [];
+    arenaPlayers.forEach((p) => {
+      if (p.face && !arenaFaceImgs[p.name]) {
+        const im = new Image();
+        im.src = p.face;
+        arenaFaceImgs[p.name] = im;
+      }
+    });
+    const firstJoin = Math.min.apply(null, arenaPlayers.map((p) => p.joinIndex || 0));
+    const firstPlayer = arenaPlayers.find((p) => (p.joinIndex || 0) === firstJoin);
     const hud = $('arenaHud');
     hud.innerHTML = '';
     const title = document.createElement('div');
     title.className = 'arena-hud-title';
     title.textContent = '🌍 CANLI ARENA';
     hud.appendChild(title);
+    if (firstPlayer) {
+      const lead = document.createElement('div');
+      lead.className = 'arena-hud-row';
+      lead.textContent = '🥇 ' + firstPlayer.name + ' +0.5sn';
+      hud.appendChild(lead);
+    }
     players.slice(0, 6).forEach((p) => {
       const row = document.createElement('div');
       row.className = 'arena-hud-row';
@@ -997,7 +1081,8 @@
         rank.className = 'admin-rank';
         rank.textContent = '#' + p.rank;
         const name = document.createElement('strong');
-        name.textContent = p.name + (profile && p.name === profile.username ? ' (sen)' : '');
+        name.textContent = ((p.joinIndex || 0) === firstJoin ? '🥇 ' : '') + p.name
+          + (profile && p.name === profile.username ? ' (sen)' : '');
         const score = document.createElement('span');
         score.className = 'admin-stats';
         score.textContent = (p.playing ? '🏃 oynuyor' : p.ready ? '✅ hazır' : '⏳ bekliyor') + ' · ' + p.score;

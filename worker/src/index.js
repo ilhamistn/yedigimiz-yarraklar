@@ -303,6 +303,7 @@ export class Arena {
     this.state = state;
     this.sessions = new Map();
     this.phase = 'lobby'; // lobby | starting | running
+    this.nextJoin = 0;
   }
 
   async fetch(request) {
@@ -314,7 +315,10 @@ export class Arena {
     const uid = url.searchParams.get('uid') || '';
     const [client, server] = new WebSocketPair();
 
-    const entry = { ws: server, name, uid, score: 0, face: '', ready: false, playing: false };
+    const entry = {
+      ws: server, name, uid, score: 0, face: '',
+      ready: false, playing: false, joinIndex: this.nextJoin++,
+    };
     this.sessions.set(server, entry);
     server.accept();
 
@@ -386,6 +390,7 @@ export class Arena {
         face: s.face,
         ready: s.ready,
         playing: s.playing,
+        joinIndex: s.joinIndex,
       }));
   }
 
