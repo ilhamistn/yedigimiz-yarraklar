@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 13;
+  const APP_VERSION = 14;
 
   const STORY_LEVELS = [
     {
@@ -795,40 +795,42 @@
       ctx.fillRect(x, g + (H - g) * 0.5, dash, 3);
     }
 
-    // ---- 🍆🍌 engeller + 🍩 donut'lar: renkli rozet + kalın kontur ----
+    // ---- 🍆🍌🍩 emojiler: halkasız, beyaz kontur + yumuşak gölge ----
     ctx.textBaseline = 'alphabetic';
     for (const egg of s.eggs) {
       const donut = egg.kind === 'donut';
       const banana = egg.kind === 'banana';
       const icon = donut ? '🍩' : banana ? '🍌' : '🍆';
       const lift = egg.lift || 0;
-      const bx = egg.x + es * 0.45;
-      const by = g - es * 0.5 - lift;
+      const ey = g - 2 - lift;
       ctx.save();
-      ctx.shadowColor = donut ? 'rgba(236,72,153,0.7)' : banana ? 'rgba(245,158,11,0.6)' : 'rgba(124,58,237,0.6)';
-      ctx.shadowBlur = donut ? 16 : 12;
-      ctx.beginPath();
-      ctx.arc(bx, by, es * (donut ? 0.7 : 0.66), 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.fill();
+      ctx.font = ((donut || banana) ? es * 1.12 : es * 1.08) + 'px sans-serif';
+      ctx.lineWidth = 4;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.shadowColor = 'rgba(15,23,42,0.28)';
+      ctx.shadowBlur = 7;
+      ctx.shadowOffsetY = 2;
+      ctx.strokeText(icon, egg.x, ey);
       ctx.shadowBlur = 0;
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = donut ? '#ec4899' : banana ? '#f59e0b' : '#7c3aed';
-      ctx.stroke();
+      ctx.shadowOffsetY = 0;
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(15,23,42,0.35)';
+      ctx.strokeText(icon, egg.x, ey);
+      ctx.fillText(icon, egg.x, ey);
+
+      // Hareketli engeller için küçük yön işaretleri (halka yerine)
       if (egg.moving) {
+        const ax = egg.x + es * 0.8;
+        ctx.strokeStyle = 'rgba(15,23,42,0.32)';
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.arc(bx, by, es * 0.78, 0, Math.PI * 2);
-        ctx.setLineDash([4, 4]);
-        ctx.lineWidth = 1.5;
-        ctx.strokeStyle = 'rgba(15,23,42,0.3)';
+        ctx.moveTo(ax, ey - es * 0.42);
+        ctx.lineTo(ax, ey - es * 0.2);
+        ctx.moveTo(ax, ey + es * 0.2);
+        ctx.lineTo(ax, ey + es * 0.42);
         ctx.stroke();
-        ctx.setLineDash([]);
       }
-      ctx.font = ((donut || banana) ? es * 1.05 : es) + 'px sans-serif';
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = 'rgba(15,23,42,0.6)';
-      ctx.fillText(icon, egg.x, g - 2 - lift);
-      ctx.strokeText(icon, egg.x, g - 2 - lift);
       ctx.restore();
     }
 
