@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 24;
+  const APP_VERSION = 25;
 
   const ROASTS = [
     'Sikim hıyar desem tuzla koşarsın.',
@@ -972,7 +972,7 @@
       }
     }
 
-    // ---- Arenadaki diğer oyuncular: hepsi ekranda, yan yana ----
+    // ---- Arenadaki diğer oyuncular: aynı karakter, hepsi ekranda ----
     if (currentMode === 'arena' && arenaPlayers.length) {
       const firstJoin = Math.min.apply(null, arenaPlayers.map((p) => p.joinIndex || 0));
       const others = arenaPlayers
@@ -982,14 +982,34 @@
           const sb = (b.score || 0) + ((b.joinIndex || 0) === firstJoin ? 2 : 0);
           return sb - sa;
         });
-      const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#ec4899'];
-      const ghostW = charW() * 0.62;
-      const laneStart = W * 0.46;
-      const laneEnd = W - ghostW * 0.7 - 14;
+      const gw = cw * 0.9;
+      const gh = ch * 0.9;
+      const laneStart = W * 0.44;
+      const laneEnd = W - gw - 12;
       others.forEach((p, i) => {
         const t = others.length === 1 ? 0.5 : i / (others.length - 1);
         const centerX = laneStart + (laneEnd - laneStart) * t;
-        drawGhost(centerX - ghostW * 0.3, g - ch * 0.62, arenaFaceImgs[p.name], p.name, colors[i % colors.length]);
+        const pPhase = animTime * 11 + i * 0.9;
+        const bob = Math.abs(Math.sin(pPhase)) * gh * 0.018;
+        drawRunner(g - gh - bob, gw, gh, centerX - gw / 2, g, {
+          air: false,
+          moving: true,
+          phase: pPhase,
+          face: arenaFaceImgs[p.name] || null,
+          squash: 0,
+          stretch: 0,
+        });
+        ctx.save();
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        const tw = ((ctx.measureText && ctx.measureText(p.name)) || {}).width || p.name.length * 6;
+        const ly = g - gh - 14 - bob;
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(centerX - tw / 2 - 5, ly - 11, tw + 10, 15);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(p.name, centerX, ly);
+        ctx.restore();
       });
     }
 
@@ -1021,45 +1041,6 @@
     });
   }
 
-  function drawGhost(x, top, img, name, tint) {
-    const w = charW() * 0.62;
-    const h = charH() * 0.62;
-    ctx.save();
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.beginPath();
-    ctx.ellipse(x + w * 0.3, groundY() + 2, w * 0.45, h * 0.04, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = tint;
-    roundRect(x + w * 0.05, top + h * 0.4, w * 0.5, h * 0.45, w * 0.16);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(x + w * 0.3, top + h * 0.24, w * 0.28, 0, Math.PI * 2);
-    ctx.fillStyle = '#f1c27d';
-    ctx.fill();
-    ctx.clip();
-    if (img && img.complete && img.naturalWidth) {
-      ctx.drawImage(img, x + w * 0.02, top - h * 0.04, w * 0.56, w * 0.56);
-    } else {
-      ctx.font = (w * 0.45) + 'px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('😀', x + w * 0.3, top + h * 0.24);
-    }
-    ctx.restore();
-
-    ctx.save();
-    ctx.font = '11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    const tw = ((ctx.measureText && ctx.measureText(name)) || {}).width || name.length * 6;
-    ctx.fillStyle = 'rgba(0,0,0,0.65)';
-    ctx.fillRect(x + w * 0.3 - tw / 2 - 4, top - 18, tw + 8, 15);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(name, x + w * 0.3, top - 6);
-    ctx.restore();
-  }
-
   // İki parçalı bacak için diz noktası (law of cosines)
   function elbowPoint(hx, hy, fx, fy, l1, l2, bend) {
     const dx = fx - hx, dy = fy - hy;
@@ -1074,10 +1055,15 @@
     };
   }
 
-  function drawRunner(top, w, h, x, g) {
-    const air = !state.onGround;
-    const moving = running && !paused;
-    const phase = animTime * 11;
+  function drawRunner(top, w, h, x, g, opts) {
+    const o = opts || {};
+    const air = o.air !== undefined ? o.air : !state.onGround;
+    const moving = o.moving !== undefined ? o.moving : (running && !paused);
+    const phase = o.phase !== undefined ? o.phase : animTime * 11;
+    const face = o.face !== undefined ? o.face : faceImg;
+    const vyNow = o.vy !== undefined ? o.vy : state.vy;
+    const sq = o.squash !== undefined ? o.squash : (state.squash || 0);
+    const st = o.stretch !== undefined ? o.stretch : (state.jumpStretch || 0);
     const bob = moving && !air ? Math.abs(Math.sin(phase)) * h * 0.018 : 0;
     const y = top + bob;
     const lean = moving && !air ? h * 0.05 : 0;
@@ -1121,11 +1107,9 @@
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    const sq = state.squash || 0;
-    const st = state.jumpStretch || 0;
     ctx.translate(cx, g);
     ctx.scale(1 + sq * 0.2 - st * 0.1, 1 - sq * 0.22 + st * 0.14);
-    if (air) ctx.rotate(state.vy < 0 ? -0.06 : 0.06);
+    if (air) ctx.rotate(vyNow < 0 ? -0.06 : 0.06);
     ctx.translate(-cx, -g);
 
     function drawLeg(side, far) {
@@ -1263,8 +1247,8 @@
     ctx.fillStyle = skin;
     ctx.fill();
     ctx.clip();
-    if (faceImg && faceImg.complete && faceImg.naturalWidth) {
-      ctx.drawImage(faceImg, headX - headR, headCy - headR, headR * 2, headR * 2);
+    if (face && face.complete && face.naturalWidth) {
+      ctx.drawImage(face, headX - headR, headCy - headR, headR * 2, headR * 2);
     } else {
       ctx.fillStyle = '#ffffff';
       ctx.beginPath(); ctx.ellipse(headX - headR * 0.35, headCy - headR * 0.05, headR * 0.22, headR * 0.17, 0, 0, Math.PI * 2); ctx.fill();
@@ -1288,7 +1272,7 @@
     }
     ctx.restore();
 
-    if (!(faceImg && faceImg.complete && faceImg.naturalWidth)) {
+    if (!(face && face.complete && face.naturalWidth)) {
       // Koyu, dik saçlar
       ctx.fillStyle = '#3f1d10';
       ctx.beginPath();
