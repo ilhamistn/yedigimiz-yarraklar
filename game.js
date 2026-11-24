@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 22;
+  const APP_VERSION = 23;
 
   const ROASTS = [
     'Sikim hıyar desem tuzla koşarsın.',
