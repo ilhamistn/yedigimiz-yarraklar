@@ -241,6 +241,17 @@ input:focus { border-color: var(--accent); }
 }
 .mini-btn.approve { background: #16a34a; }
 .mini-btn.delete { background: #dc2626; }
+.worst-box {
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(135deg, rgba(239,68,68,0.22), rgba(234,88,12,0.18));
+  border: 2px solid #ef4444; border-radius: 14px;
+  padding: 12px; margin-bottom: 14px; text-align: left;
+}
+.worst-icon { font-size: 34px; }
+.worst-info { display: flex; flex-direction: column; gap: 2px; }
+.worst-label { font-size: 10px; font-weight: 900; color: #fca5a5; letter-spacing: 1px; }
+.worst-info strong { font-size: 18px; color: #fecaca; }
+.worst-info span:last-child { font-size: 12px; color: #fdba74; }
 .leader-row .admin-rank { color: #fde047; }
 .leader-empty { text-align: center; color: var(--muted); font-size: 14px; padding: 16px; }
 

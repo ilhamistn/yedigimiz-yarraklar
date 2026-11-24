@@ -257,7 +257,11 @@ export default {
       const { results } = await env.DB.prepare(
         'SELECT username, best, games FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY best DESC, username ASC LIMIT 20'
       ).all();
-      return json({ users: results });
+      // Her oyun "yarrağı yeme" ile bittiği için en çok oyun oynayan = en çok yiyen
+      const mostEaten = await env.DB.prepare(
+        'SELECT username, games, best FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY games DESC, username ASC LIMIT 1'
+      ).first() || null;
+      return json({ users: results, mostEaten });
     }
 
     // ---- Admin: tüm kullanıcılar ----

@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 25;
+  const APP_VERSION = 26;
 
   const ROASTS = [
     'Sikim hıyar desem tuzla koşarsın.',
@@ -255,6 +255,14 @@
     try {
       const data = await api('/api/leaderboard', { auth: false });
       list.innerHTML = '';
+      const worstBox = $('worstBox');
+      if (data.mostEaten) {
+        worstBox.hidden = false;
+        $('worstName').textContent = data.mostEaten.username;
+        $('worstStats').textContent = data.mostEaten.games + ' kez yarrağı yedi · en iyi: ' + data.mostEaten.best;
+      } else {
+        worstBox.hidden = true;
+      }
       if (!data.users.length) {
         list.innerHTML = '<p class="leader-empty">Henüz kimse yarraktan kaçamadı.</p>';
         return;
