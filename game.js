@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 45;
+  const APP_VERSION = 46;
 
   const LEADER_TITLES = [
     'Obsidyen Yarrak Bükücü',

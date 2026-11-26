@@ -59,7 +59,7 @@
       { name: 'Mikail Abi', x: 2100, min: 2020, max: 2250, color: '#ef4444' },
       { name: 'Aycan Hanım', x: 2660, min: 2560, max: 2830, color: '#a855f7' },
     ],
-    coinXs: [180, 300, 520, 860, 960, 1080, 1280, 1420, 1500, 1670, 1860, 2020, 2120, 2250, 2440, 2600, 2700, 2860, 2980],
+    // ödüller buildCoins() ile zemine/platformlara/boşluklara dağıtılır
     sacks: [
       { x: 330, label: 'BUDA100' },
       { x: 760, label: 'GRANIFLEX' },
@@ -89,6 +89,34 @@
     return list;
   }
 
+  function buildCoins(g) {
+    const list = [];
+    const add = (x, y, type) => list.push({
+      x, y, got: false, type: type || 'coin', value: type === 'gem' ? 50 : 10,
+    });
+
+    // Yol boyunca rozetler + her bölümde bir elmas
+    LEVEL.ground.forEach((seg) => {
+      for (let x = seg.x + 80; x < seg.x + seg.w - 30; x += 95) add(x, g - 46);
+      add(seg.x + seg.w * 0.55, g - 108, 'gem');
+    });
+
+    // Boşlukların üstünde yay şeklinde ödüller
+    for (let i = 0; i < LEVEL.ground.length - 1; i++) {
+      const a = LEVEL.ground[i];
+      const end = a.x + a.w;
+      const next = LEVEL.ground[i + 1].x;
+      const mid = (end + next) / 2;
+      [-1, 0, 1].forEach((k) => add(mid + k * 40, g - 86 - (1 - Math.abs(k)) * 28));
+    }
+
+    // Platformların üstünde ödüller
+    LEVEL.platforms.forEach((p) => {
+      for (let k = 0; k < 3; k++) add(p.x + p.w * (0.22 + 0.28 * k), g - p.above - 26);
+    });
+    return list;
+  }
+
   function fresh() {
     return {
       x: 60, y: groundY() - PH, vx: 0, vy: 0, onGround: true,
@@ -100,7 +128,7 @@
         dead: false, phase: i * 0.7, slow: 0, touch: 0, dynamic: false,
       })),
       pursuer: null,
-      coins: LEVEL.coinXs.map((x, i) => ({ x, y: i % 3 === 0 ? groundY() - 70 : groundY() - 45, got: false })),
+      coins: buildCoins(groundY()),
       floaters: [],
       finished: false,
     };
@@ -317,8 +345,11 @@
       if (c.got) continue;
       if (s.x < c.x + 18 && s.x + PW > c.x && s.y < c.y + 20 && s.y + PH > c.y) {
         c.got = true;
-        s.score += 10;
-        s.floaters.push({ x: c.x + 9, y: c.y - 6, text: '+10', life: 0.8 });
+        s.score += c.value;
+        s.floaters.push({
+          x: c.x + 9, y: c.y - 6,
+          text: (c.type === 'gem' ? '💎 +50' : '+10'), life: 0.8,
+        });
       }
     }
 
@@ -531,15 +562,16 @@
       ctx.fillRect(x, py, p.w, 4);
     }
 
-    // rozetler
-    ctx.font = '22px sans-serif';
+    // Ödüller: rozetler ve elmaslar
     ctx.textBaseline = 'alphabetic';
     for (const c of s.coins) {
       if (c.got) continue;
       const x = c.x - cam;
       if (x < -30 || x > W + 30) continue;
+      const gem = c.type === 'gem';
       const bob = Math.sin(animTime * 4 + c.x) * 3;
-      ctx.fillText('💰', x, c.y + 16 + bob);
+      ctx.font = (gem ? 26 : 20) + 'px sans-serif';
+      ctx.fillText(gem ? '💎' : '💰', x, c.y + 16 + bob);
     }
 
     // bayrak
