@@ -14,6 +14,14 @@
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Ekran büyüklüğü değişince zemin objelerini yeniden yerleştir
+    if (state) {
+      const g = groundY();
+      state.sacks.forEach((bag) => { bag.y = g - 36; });
+      state.enemies.forEach((e) => { e.y = g - 30; });
+      if (state.onGround) state.y = g - PH;
+    }
   }
   window.addEventListener('resize', resize);
 
@@ -36,12 +44,13 @@
       { x: 0, w: 620 }, { x: 720, w: 420 }, { x: 1250, w: 480 },
       { x: 1830, w: 470 }, { x: 2400, w: 800 },
     ],
+    // platform yükseklikleri zemine göre (above = groundY - platform y)
     platforms: [
-      { x: 260, y: 250, w: 130 }, { x: 500, y: 245, w: 120 },
-      { x: 840, y: 255, w: 140 }, { x: 1040, y: 240, w: 130 },
-      { x: 1390, y: 250, w: 160 }, { x: 1650, y: 240, w: 130 },
-      { x: 1990, y: 245, w: 140 }, { x: 2230, y: 235, w: 130 },
-      { x: 2580, y: 250, w: 150 }, { x: 2830, y: 245, w: 120 },
+      { x: 260, above: 90, w: 130 }, { x: 500, above: 95, w: 120 },
+      { x: 840, above: 85, w: 140 }, { x: 1040, above: 100, w: 130 },
+      { x: 1390, above: 90, w: 160 }, { x: 1650, above: 100, w: 130 },
+      { x: 1990, above: 95, w: 140 }, { x: 2230, above: 105, w: 130 },
+      { x: 2580, above: 90, w: 150 }, { x: 2830, above: 95, w: 120 },
     ],
     enemies: [
       { name: 'Mikail Abi', x: 400, min: 340, max: 560, color: '#ef4444' },
@@ -76,7 +85,7 @@
   function solids() {
     const g = groundY();
     const list = LEVEL.ground.map((x) => ({ x: x.x, y: g, w: x.w, h: H - g, ground: true }));
-    LEVEL.platforms.forEach((p) => list.push({ x: p.x, y: p.y, w: p.w, h: 16, ground: false }));
+    LEVEL.platforms.forEach((p) => list.push({ x: p.x, y: g - p.above, w: p.w, h: 16, ground: false }));
     return list;
   }
 
@@ -97,12 +106,13 @@
   }
 
   function start() {
+    // Önce ekranı göster ve canvas'ı doğru boyutlandır, SONRA zemin objelerini yerleştir
+    show('game');
+    resize();
     state = fresh();
     paused = false;
     $('epsaPauseBox').hidden = true;
     updateHud(true);
-    show('game');
-    resize();
     if (rafId) cancelAnimationFrame(rafId);
     lastTime = performance.now();
     accumulator = 0;
@@ -148,7 +158,11 @@
     state.vx = 0;
     state.vy = 0;
     state.camera = 0;
-    state.invuln = 1.5;
+    state.invuln = 2.5;
+    // Yeniden doğuş noktasında canavar kalmasın, hemen tekrar ölme
+    state.enemies.forEach((e) => {
+      if (!e.dead && e.x < 320) { e.x = 420; e.vx = 55; }
+    });
     updateHud();
   }
 
@@ -218,9 +232,9 @@
       e.slow = Math.max(0, e.slow - dt);
       const slowMul = e.slow > 0 ? 0.4 : 1;
       const dist = s.x - e.x;
-      const chasing = Math.abs(dist) < 430 && Math.abs(s.y - e.y) < 130;
+      const chasing = Math.abs(dist) < 320 && Math.abs(s.y - e.y) < 90;
       if (chasing) {
-        e.vx = (dist >= 0 ? 1 : -1) * 78;
+        e.vx = (dist >= 0 ? 1 : -1) * 62;
       } else if (!e.dynamic) {
         if (e.vx === 0) e.vx = 55;
       }
@@ -233,7 +247,7 @@
 
       const hit = s.x < e.x + 28 && s.x + PW > e.x && s.y < e.y + 30 && s.y + PH > e.y;
       if (hit) {
-        if (s.vy > 0 && prevBottom <= e.y + 10) {
+        if (s.vy > 0 && prevBottom <= e.y + 18) {
           e.dead = true;
           s.score += 100;
           s.vy = -430;
@@ -382,9 +396,10 @@
       const x = p.x - cam;
       if (x + p.w < 0 || x > W) continue;
       ctx.fillStyle = '#166534';
-      ctx.fillRect(x, p.y, p.w, 16);
+      const py = g - p.above;
+      ctx.fillRect(x, py, p.w, 16);
       ctx.fillStyle = '#4ade80';
-      ctx.fillRect(x, p.y, p.w, 4);
+      ctx.fillRect(x, py, p.w, 4);
     }
 
     // rozetler
