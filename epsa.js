@@ -97,7 +97,7 @@
       sacks: LEVEL.sacks.map((s) => ({ ...s, y: groundY() - 36, used: 0 })),
       enemies: LEVEL.enemies.map((e, i) => ({
         ...e, y: groundY() - 30, vx: i % 2 === 0 ? 55 : -55,
-        dead: false, phase: i * 0.7, slow: 0, dynamic: false,
+        dead: false, phase: i * 0.7, slow: 0, touch: 0, dynamic: false,
       })),
       coins: LEVEL.coinXs.map((x, i) => ({ x, y: i % 3 === 0 ? groundY() - 70 : groundY() - 45, got: false })),
       floaters: [],
@@ -199,6 +199,7 @@
 
     // dikey
     const prevBottom = s.y + PH;
+    const wasFalling = s.vy > 0; // zemin çarpışması vy'yi sıfırlamadan önce yakala
     s.vy += GRAVITY * dt;
     s.y += s.vy * dt;
     s.onGround = false;
@@ -221,7 +222,7 @@
         s.enemies.push({
           name: LEVEL.names[i], color: LEVEL.colors[i], x: ahead,
           min: 0, max: LEVEL.width, y: groundY() - 30, vx: -70,
-          dead: false, phase: Math.random() * 6, slow: 0, dynamic: true,
+          dead: false, phase: Math.random() * 6, slow: 0, touch: 0, dynamic: true,
         });
       }
     }
@@ -247,15 +248,24 @@
 
       const hit = s.x < e.x + 28 && s.x + PW > e.x && s.y < e.y + 30 && s.y + PH > e.y;
       if (hit) {
-        if (s.vy > 0 && prevBottom <= e.y + 18) {
+        if (wasFalling && prevBottom <= e.y + 22) {
           e.dead = true;
           s.score += 100;
           s.vy = -430;
           s.floaters.push({ x: e.x + 14, y: e.y - 8, text: '+100', life: 1 });
-        } else if (s.invuln <= 0) {
-          loseLife();
-          return;
+        } else {
+          // Kısa süreli sürtünme öldürmez: iter ve yavaşlatır.
+          // Temas 0.55 sn sürerse yakalanır.
+          e.touch = (e.touch || 0) + dt;
+          if (e.touch > 0.55 && s.invuln <= 0) {
+            loseLife();
+            return;
+          }
+          s.slow = Math.max(s.slow, 0.35);
+          s.x += (s.x < e.x ? -1 : 1) * 1.5;
         }
+      } else {
+        e.touch = 0;
       }
     }
 
@@ -331,28 +341,107 @@
 
   function drawEnemy(e) {
     const x = e.x - state.camera;
-    const bob = Math.sin(animTime * 8 + e.phase) * 2;
+    const bob = Math.sin(animTime * 8 + e.phase) * 1.5;
     const y = e.y + bob;
+    const male = e.name === 'Mikail Abi';
+    const longHair = e.name === 'Aycan Hanım';
+    const glasses = e.name === 'Esin Hanım';
+    const swing = Math.sin(animTime * 9 + e.phase) * 3;
+    const skin = '#f2b07d';
+
     ctx.save();
+    // zemin gölgesi
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath(); ctx.ellipse(14, e.y + 32, 15, 4, 0, 0, Math.PI * 2); ctx.fill();
+
+    // bacaklar
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(10, y + 26); ctx.lineTo(9 + swing, y + 32); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(18, y + 26); ctx.lineTo(19 - swing, y + 32); ctx.stroke();
+
+    // gövde
     ctx.fillStyle = e.color;
-    ctx.beginPath(); ctx.ellipse(14, y + 18, 14, 12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(14, y + 21, 12, 9, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(9, y + 14, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(19, y + 14, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(9, y + 16); ctx.lineTo(14, y + 21); ctx.lineTo(19, y + 16);
+    ctx.closePath(); ctx.fill();
+    if (male) {
+      ctx.fillStyle = '#1d4ed8';
+      ctx.beginPath();
+      ctx.moveTo(14, y + 20); ctx.lineTo(12, y + 28); ctx.lineTo(14, y + 26); ctx.lineTo(16, y + 28);
+      ctx.closePath(); ctx.fill();
+    }
+
+    // kollar
+    ctx.strokeStyle = e.color;
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(5, y + 18); ctx.lineTo(2 - swing, y + 25); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(23, y + 18); ctx.lineTo(26 + swing, y + 25); ctx.stroke();
+
+    // kafa
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.arc(14, y + 8, 9, 0, Math.PI * 2); ctx.fill();
+
+    // saç stilleri
+    ctx.fillStyle = '#3f1d10';
+    if (longHair) {
+      ctx.beginPath(); ctx.ellipse(14, y + 5, 10, 10, 0, Math.PI, 0); ctx.fill();
+      ctx.fillRect(4, y + 5, 3, 13);
+      ctx.fillRect(21, y + 5, 3, 13);
+    } else if (male) {
+      ctx.beginPath(); ctx.arc(14, y + 6, 9, Math.PI, 0); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(14, y + 5, 9, Math.PI, 0); ctx.fill();
+      ctx.beginPath(); ctx.arc(22, y + 3, 4, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // gözler
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.ellipse(11, y + 8, 2.8, 2.2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(17, y + 8, 2.8, 2.2, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#111827';
-    ctx.beginPath(); ctx.arc(10, y + 14, 2, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(20, y + 14, 2, 0, Math.PI * 2); ctx.fill();
-    // isim
+    ctx.beginPath(); ctx.arc(11.5 + swing * 0.1, y + 8, 1.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(17.5 + swing * 0.1, y + 8, 1.4, 0, Math.PI * 2); ctx.fill();
+
+    // kızgın kaşlar
+    ctx.strokeStyle = '#3f1d10';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(8, y + 3.5); ctx.lineTo(13, y + 5.5);
+    ctx.moveTo(20, y + 3.5); ctx.lineTo(15, y + 5.5);
+    ctx.stroke();
+
+    if (glasses) {
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(11, y + 8, 3.6, 0, Math.PI * 2);
+      ctx.arc(17, y + 8, 3.6, 0, Math.PI * 2);
+      ctx.moveTo(14.6, y + 8); ctx.lineTo(14.6, y + 8);
+      ctx.stroke();
+    }
+
+    // ağız
+    ctx.strokeStyle = '#9a4a22';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(11, y + 14);
+    ctx.quadraticCurveTo(14, y + 12.5, 17, y + 14);
+    ctx.stroke();
+
+    // isim etiketi
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
     const tw = ((ctx.measureText && ctx.measureText(e.name)) || {}).width || e.name.length * 6;
-    ctx.fillStyle = 'rgba(0,0,0,0.65)';
-    ctx.fillRect(14 - tw / 2 - 4, y - 22, tw + 8, 14);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(14 - tw / 2 - 4, y - 21, tw + 8, 14);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(e.name, 14, y - 12);
+    ctx.fillText(e.name, 14, y - 11);
     if (e.slow > 0) {
       ctx.font = '14px sans-serif';
-      ctx.fillText('🐌', 34, y - 22);
+      ctx.fillText('🐌', 34, y - 21);
     }
     ctx.restore();
   }
