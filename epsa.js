@@ -51,6 +51,18 @@
       { name: 'Aycan Hanım', x: 2660, min: 2560, max: 2830, color: '#a855f7' },
     ],
     coinXs: [180, 300, 520, 860, 960, 1080, 1280, 1420, 1500, 1670, 1860, 2020, 2120, 2250, 2440, 2600, 2700, 2860, 2980],
+    sacks: [
+      { x: 330, label: 'BUDA100' },
+      { x: 760, label: 'GRANIFLEX' },
+      { x: 1160, label: 'BUDA200' },
+      { x: 1580, label: 'BUDA100' },
+      { x: 1930, label: 'GRANIFLEX' },
+      { x: 2310, label: 'BUDA200' },
+      { x: 2510, label: 'BUDA100' },
+      { x: 2900, label: 'GRANIFLEX' },
+    ],
+    names: ['Mikail Abi', 'Aycan Hanım', 'Esin Hanım'],
+    colors: ['#ef4444', '#a855f7', '#0ea5e9'],
   };
 
   const keys = { left: false, right: false, jump: false };
@@ -72,8 +84,11 @@
     return {
       x: 60, y: groundY() - PH, vx: 0, vy: 0, onGround: true,
       lives: 3, score: 0, time: 90, camera: 0, invuln: 0,
+      slow: 0, spawnTimer: 3,
+      sacks: LEVEL.sacks.map((s) => ({ ...s, y: groundY() - 36, used: 0 })),
       enemies: LEVEL.enemies.map((e, i) => ({
-        ...e, y: groundY() - 30, vx: i % 2 === 0 ? 55 : -55, dead: false, phase: i * 0.7,
+        ...e, y: groundY() - 30, vx: i % 2 === 0 ? 55 : -55,
+        dead: false, phase: i * 0.7, slow: 0, dynamic: false,
       })),
       coins: LEVEL.coinXs.map((x, i) => ({ x, y: i % 3 === 0 ? groundY() - 70 : groundY() - 45, got: false })),
       floaters: [],
@@ -154,10 +169,11 @@
     s.time -= dt;
     if (s.time <= 0) { finish(false); return; }
     s.invuln = Math.max(0, s.invuln - dt);
+    s.slow = Math.max(0, s.slow - dt);
 
-    // yatay
+    // yatay (çuvala çarptıysa yavaş)
     const dir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
-    s.vx = dir * MOVE;
+    s.vx = dir * MOVE * (s.slow > 0 ? 0.45 : 1);
     s.x += s.vx * dt;
     for (const b of solids()) {
       if (s.x < b.x + b.w && s.x + PW > b.x && s.y < b.y + b.h && s.y + PH > b.y) {
@@ -180,12 +196,41 @@
     }
     if (s.y > H + 60) { loseLife(); return; }
 
-    // canavarlar
+    // Önden gelen yeni canavarlar (belirli aralıklarla oyuncunun ilerisinde)
+    s.spawnTimer -= dt;
+    if (s.spawnTimer <= 0) {
+      s.spawnTimer = 4 + Math.random() * 3;
+      const alive = s.enemies.filter((e) => !e.dead).length;
+      if (alive < 7) {
+        const i = Math.floor(Math.random() * LEVEL.names.length);
+        const ahead = Math.min(LEVEL.width - 60, s.x + 420 + Math.random() * 220);
+        s.enemies.push({
+          name: LEVEL.names[i], color: LEVEL.colors[i], x: ahead,
+          min: 0, max: LEVEL.width, y: groundY() - 30, vx: -70,
+          dead: false, phase: Math.random() * 6, slow: 0, dynamic: true,
+        });
+      }
+    }
+
+    // canavarlar: oyuncuyu görürse peşinden koşar, yoksa devriye gezer
     for (const e of s.enemies) {
       if (e.dead) continue;
-      e.x += e.vx * dt;
-      if (e.x < e.min) { e.x = e.min; e.vx = Math.abs(e.vx); }
-      if (e.x > e.max) { e.x = e.max; e.vx = -Math.abs(e.vx); }
+      e.slow = Math.max(0, e.slow - dt);
+      const slowMul = e.slow > 0 ? 0.4 : 1;
+      const dist = s.x - e.x;
+      const chasing = Math.abs(dist) < 430 && Math.abs(s.y - e.y) < 130;
+      if (chasing) {
+        e.vx = (dist >= 0 ? 1 : -1) * 78;
+      } else if (!e.dynamic) {
+        if (e.vx === 0) e.vx = 55;
+      }
+      e.x += e.vx * dt * slowMul;
+      if (!e.dynamic && !chasing) {
+        if (e.x < e.min) { e.x = e.min; e.vx = Math.abs(e.vx); }
+        if (e.x > e.max) { e.x = e.max; e.vx = -Math.abs(e.vx); }
+      }
+      if (e.dynamic && dist > 700) { e.dead = true; continue; }
+
       const hit = s.x < e.x + 28 && s.x + PW > e.x && s.y < e.y + 30 && s.y + PH > e.y;
       if (hit) {
         if (s.vy > 0 && prevBottom <= e.y + 10) {
@@ -198,6 +243,22 @@
           return;
         }
       }
+    }
+
+    // Çuval tuzakları: çarpan karakter ve canavar yavaşlar
+    for (const bag of s.sacks) {
+      if (s.x < bag.x + 38 && s.x + PW > bag.x && s.y < bag.y + 36 && s.y + PH > bag.y && bag.used <= 0) {
+        bag.used = 1.2;
+        s.slow = 1.6;
+        s.floaters.push({ x: bag.x + 19, y: bag.y - 8, text: '🐌 Yavaşladın!', life: 1.2 });
+      }
+      for (const e of s.enemies) {
+        if (e.dead || e.slow > 0) continue;
+        if (e.x < bag.x + 38 && e.x + 28 > bag.x && e.y < bag.y + 36 && e.y + 30 > bag.y) {
+          e.slow = 1.5;
+        }
+      }
+      bag.used = Math.max(0, bag.used - dt);
     }
 
     // rozetler
@@ -275,6 +336,10 @@
     ctx.fillRect(14 - tw / 2 - 4, y - 22, tw + 8, 14);
     ctx.fillStyle = '#ffffff';
     ctx.fillText(e.name, 14, y - 12);
+    if (e.slow > 0) {
+      ctx.font = '14px sans-serif';
+      ctx.fillText('🐌', 34, y - 22);
+    }
     ctx.restore();
   }
 
@@ -351,10 +416,37 @@
       ctx.fillText('ÇIKIŞ', gx + 8, g - 116);
     }
 
+    // Çuval tuzakları
+    for (const bag of s.sacks) {
+      const x = bag.x - cam;
+      if (x < -60 || x > W + 60) continue;
+      ctx.save();
+      ctx.fillStyle = '#78350f';
+      ctx.beginPath();
+      ctx.moveTo(x + 4, bag.y + 34);
+      ctx.quadraticCurveTo(x - 2, bag.y + 10, x + 10, bag.y + 4);
+      ctx.lineTo(x + 28, bag.y + 4);
+      ctx.quadraticCurveTo(x + 40, bag.y + 10, x + 34, bag.y + 34);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#a16207';
+      ctx.fillRect(x + 9, bag.y, 20, 8);
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillText(bag.label, x + 19, bag.y + 24);
+      ctx.restore();
+    }
+
     for (const e of s.enemies) if (!e.dead && e.x - cam > -60 && e.x - cam < W + 60) drawEnemy(e);
 
     if (s.invuln <= 0 || Math.floor(animTime * 12) % 2 === 0) {
       drawHero(s.x - cam, s.y);
+    }
+    if (s.slow > 0) {
+      ctx.font = '18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🐌', s.x - cam + PW / 2, s.y - 8);
     }
 
     ctx.textAlign = 'left';
