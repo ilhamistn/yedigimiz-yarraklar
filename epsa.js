@@ -823,6 +823,7 @@
 
   // Ekran kaydırma: yukarı kaydır / dokun = zıpla, sağa-sola kaydır = koş
   canvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
     touchStart = { x: e.clientX, y: e.clientY };
   });
   canvas.addEventListener('pointerup', (e) => {
@@ -855,5 +856,10 @@
       paused = true;
       $('epsaPauseBox').hidden = false;
     }
+  });
+
+  // Uzun basışta metin seçimi / seçim menüsü çıkmasın
+  ['contextmenu', 'selectstart', 'dragstart'].forEach((evt) => {
+    document.addEventListener(evt, (e) => e.preventDefault());
   });
 })();

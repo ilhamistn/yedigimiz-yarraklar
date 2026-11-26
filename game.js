@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 49;
+  const APP_VERSION = 50;
 
   const LEADER_TITLES = [
     'Obsidyen Yarrak Bükücü',
@@ -1909,6 +1909,11 @@
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && running && !paused) togglePause(true);
+  });
+
+  // Uzun basışta metin seçimi / seçim menüsü çıkmasın
+  ['contextmenu', 'selectstart', 'dragstart'].forEach((evt) => {
+    document.addEventListener(evt, (e) => e.preventDefault());
   });
 
   /* ============================================================
