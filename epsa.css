@@ -50,12 +50,25 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #fff;
 }
 .epsa-controls {
-  display: flex; gap: 12px; justify-content: center; width: 100%;
-  padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+  display: flex; gap: clamp(10px, 5vw, 28px); justify-content: center; align-items: center;
+  width: 100%; padding: 8px 16px 6px;
 }
 .epsa-pad {
-  width: 76px; height: 62px; border-radius: 16px; border: 2px solid rgba(255,255,255,0.5);
-  background: rgba(255,255,255,0.18); color: #fff; font-size: 26px; cursor: pointer;
-  user-select: none; -webkit-tap-highlight-color: transparent;
+  width: clamp(70px, 22vw, 96px); height: 64px; border-radius: 18px;
+  border: 2px solid rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.2); color: #fff; font-size: 28px; cursor: pointer;
+  user-select: none; -webkit-tap-highlight-color: transparent; touch-action: none;
+  line-height: 1.1;
 }
-.epsa-pad:active { transform: scale(0.94); background: rgba(255,255,255,0.35); }
+.epsa-pad.jump {
+  width: clamp(96px, 30vw, 132px); height: 72px;
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  border-color: #fde68a; font-size: 26px; font-weight: 900;
+  box-shadow: 0 6px 18px rgba(239,68,68,0.4);
+}
+.epsa-pad.jump small { font-size: 10px; letter-spacing: 1px; }
+.epsa-pad:active { transform: scale(0.94); filter: brightness(1.25); }
+.epsa-mobile-hint {
+  width: 100%; text-align: center; margin: 0; padding: 0 12px calc(8px + env(safe-area-inset-bottom));
+  color: #e0f2fe; font-size: 10px; opacity: 0.85;
+}

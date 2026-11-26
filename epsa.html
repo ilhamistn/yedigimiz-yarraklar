@@ -20,6 +20,7 @@
         <div class="epsa-help">
           <span>⬅️ ➡️ — yürü</span>
           <span>⬆️ / Boşluk — zıpla (havada bir kez daha!)</span>
+          <span>Mobil: büyük ZIPLA tuşu, ekran kaydırma veya "Oto Koşu"</span>
           <span>Canavarlara zıpla, onları yen.</span>
           <span>Rozet (10) ve elmasları (50) topla, bayrağa ulaş.</span>
         </div>
@@ -39,6 +40,7 @@
         <span>💰 <strong id="epsaScore">0</strong></span>
         <span>❤️ <strong id="epsaLives">3</strong></span>
         <span>⏱️ <strong id="epsaTime">90</strong></span>
+        <button class="btn btn-ghost" id="epsaAutoBtn">▶️ Oto Koşu</button>
         <button class="btn btn-ghost" id="epsaPauseBtn">⏸</button>
       </div>
       <div class="epsa-canvas-wrap" id="epsaCanvasWrap">
@@ -50,9 +52,10 @@
       </div>
       <div class="epsa-controls">
         <button class="epsa-pad" id="epsaLeft">⬅️</button>
-        <button class="epsa-pad" id="epsaJump">⬆️</button>
+        <button class="epsa-pad jump" id="epsaJump">⤴️<br /><small>ZIPLA</small></button>
         <button class="epsa-pad" id="epsaRight">➡️</button>
       </div>
+      <p class="epsa-mobile-hint">Ekrana dokunup kaydırabilirsin: yukarı = zıpla, sağa/sola = koş. Telefonu yatay tutman önerilir.</p>
     </section>
 
     <!-- SONUÇ -->

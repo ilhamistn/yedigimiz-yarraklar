@@ -75,6 +75,15 @@
   };
 
   const keys = { left: false, right: false, jump: false };
+  let autoRun = false;
+  let swipeDir = 0;
+  let swipeTimer = 0;
+  let touchStart = null;
+
+  function buzz(ms) {
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* desteklenmiyor */ }
+  }
+
   let state = null;
   let rafId = null;
   let lastTime = 0;
@@ -158,6 +167,9 @@
     if (rafId) cancelAnimationFrame(rafId);
     lastTime = performance.now();
     accumulator = 0;
+    swipeTimer = 0;
+    swipeDir = 0;
+    touchStart = null;
     rafId = requestAnimationFrame(loop);
   }
 
@@ -192,15 +204,18 @@
       s.vy = -JUMP;
       s.onGround = false;
       s.airJumps = 0;
+      buzz(12);
     } else if (s.airJumps < 1) {
       // Havada bir kez daha zıplama
       s.airJumps++;
       s.vy = -JUMP * 0.9;
       s.floaters.push({ x: s.x + 14, y: s.y - 6, text: '⤴️', life: 0.5 });
+      buzz(12);
     }
   }
 
   function loseLife() {
+    buzz(90);
     state.lives--;
     if (state.lives <= 0) { finish(false); return; }
     state.x = 60;
@@ -236,7 +251,10 @@
     s.slow = Math.max(0, s.slow - dt);
 
     // yatay (çuvala çarptıysa yavaş)
-    const dir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+    swipeTimer = Math.max(0, swipeTimer - dt);
+    const dir = keys.right ? 1 : keys.left ? -1
+      : swipeTimer > 0 ? swipeDir
+        : autoRun ? 1 : 0;
     s.vx = dir * MOVE * (s.slow > 0 ? 0.45 : 1);
     s.x += s.vx * dt;
     for (const b of solids()) {
@@ -352,6 +370,7 @@
           e.dead = true;
           s.score += 100;
           s.vy = -430;
+          buzz(30);
           s.floaters.push({ x: e.x + 14, y: e.y - 8, text: '+100', life: 1 });
         } else {
           // Kısa süreli sürtünme öldürmez: iter ve yavaşlatır.
@@ -390,6 +409,7 @@
       if (c.got) continue;
       if (s.x < c.x + 18 && s.x + PW > c.x && s.y < c.y + 20 && s.y + PH > c.y) {
         c.got = true;
+        if (c.type === 'gem') buzz(20);
         s.score += c.value;
         s.floaters.push({
           x: c.x + 9, y: c.y - 6,
@@ -801,6 +821,25 @@
   pad('epsaRight', 'right', false);
   pad('epsaJump', 'jump', true);
 
+  // Ekran kaydırma: yukarı kaydır / dokun = zıpla, sağa-sola kaydır = koş
+  canvas.addEventListener('pointerdown', (e) => {
+    touchStart = { x: e.clientX, y: e.clientY };
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    if (!touchStart) return;
+    const dx = e.clientX - touchStart.x;
+    const dy = e.clientY - touchStart.y;
+    touchStart = null;
+    if (dy < -30 && Math.abs(dy) > Math.abs(dx)) jump();
+    else if (Math.abs(dx) > 30) { swipeDir = dx > 0 ? 1 : -1; swipeTimer = 0.5; }
+    else jump();
+  });
+  canvas.addEventListener('pointercancel', () => { touchStart = null; });
+
+  $('epsaAutoBtn').addEventListener('click', () => {
+    autoRun = !autoRun;
+    $('epsaAutoBtn').textContent = autoRun ? '✅ Oto Koşu' : '▶️ Oto Koşu';
+  });
   $('epsaStartBtn').addEventListener('click', start);
   $('epsaRetryBtn').addEventListener('click', start);
   $('epsaPauseBtn').addEventListener('click', () => {
