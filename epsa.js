@@ -2,6 +2,26 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
+  const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
+  const TOKEN_KEY = 'yy_token_v1';
+  let token = '';
+  try { token = localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { token = ''; }
+  let progress = { chapter: 1, best: 0, total: 0 };
+  let currentChapter = 1;
+
+  async function api(path, opts = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = 'Bearer ' + token;
+    const res = await fetch(API + path, {
+      method: opts.method || 'GET', headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    let data = {};
+    try { data = await res.json(); } catch (e) { /* boş */ }
+    if (!res.ok) throw new Error(data.error || 'Bir hata oluştu.');
+    return data;
+  }
+
   const canvas = $('epsaCanvas');
   const ctx = canvas.getContext('2d');
   let W = 800, H = 400, dpr = 1;
@@ -74,6 +94,14 @@
     colors: ['#ef4444', '#a855f7', '#0ea5e9'],
   };
 
+  const CHAPTERS = [
+    { name: '1. EPSA Bahçesi', badge: '🌱 Kolay', speed: 1, enemies: 3, sacks: 3, time: 90, sky: ['#7dd3fc', '#e0f2fe'] },
+    { name: '2. Toplantı Salonu', badge: '🌿 Orta', speed: 1.12, enemies: 4, sacks: 4, time: 85, sky: ['#fde68a', '#fef9c3'] },
+    { name: '3. Arşiv Katı', badge: '🌙 Zor', speed: 1.25, enemies: 5, sacks: 5, time: 80, sky: ['#1e1b4b', '#4338ca'] },
+    { name: '4. Üretim Hattı', badge: '🔥 Çok Zor', speed: 1.4, enemies: 6, sacks: 6, time: 75, sky: ['#fecaca', '#fed7aa'] },
+    { name: '5. İK Ofisi', badge: '💀 Efsane', speed: 1.55, enemies: 7, sacks: 7, time: 70, sky: ['#d8b4fe', '#f3e8ff'] },
+  ];
+
   const keys = { left: false, right: false, jump: false };
   let autoRun = false;
   let swipeDir = 0;
@@ -130,13 +158,15 @@
     return x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y;
   }
 
-  function fresh() {
+  function fresh(chapter) {
+    const cfg = CHAPTERS[chapter - 1] || CHAPTERS[0];
     return {
+      chapter,
       x: 60, y: groundY() - PH, vx: 0, vy: 0, onGround: true,
-      lives: 3, score: 0, time: 90, camera: 0, invuln: 0,
+      lives: 3, score: 0, time: cfg.time, camera: 0, invuln: 0,
       slow: 0, spawnTimer: 3, airJumps: 0,
-      sacks: LEVEL.sacks.map((s) => ({ ...s, y: groundY() - 36, used: 0 })),
-      enemies: LEVEL.enemies.map((e, i) => ({
+      sacks: LEVEL.sacks.slice(0, cfg.sacks).map((s) => ({ ...s, y: groundY() - 36, used: 0 })),
+      enemies: LEVEL.enemies.slice(0, cfg.enemies).map((e, i) => ({
         ...e, y: groundY() - 30, vx: i % 2 === 0 ? 55 : -55,
         dead: false, phase: i * 0.7, slow: 0, touch: 0, dynamic: false,
         vy: 0, onGround: true, facing: i % 2 === 0 ? 1 : -1,
@@ -148,15 +178,21 @@
     };
   }
 
-  function start() {
+  function chapterSpeed() {
+    return (CHAPTERS[currentChapter - 1] || CHAPTERS[0]).speed;
+  }
+
+  function start(chapter) {
+    currentChapter = chapter || progress.chapter || 1;
     // Önce ekranı göster ve canvas'ı doğru boyutlandır, SONRA zemin objelerini yerleştir
     show('game');
     resize();
-    state = fresh();
+    state = fresh(currentChapter);
+    $('epsaChapterLabel').textContent = CHAPTERS[currentChapter - 1].name;
     // Sağdan gelen, hiç pes etmeyen kovalayıcı
     state.pursuer = {
       name: 'Mikail Abi', color: '#dc2626', x: state.camera + W + 90,
-      min: 0, max: LEVEL.width, y: groundY() - 30, vx: -205,
+      min: 0, max: LEVEL.width, y: groundY() - 30, vx: -205 * chapterSpeed(),
       dead: false, phase: 0, slow: 0, touch: 0, dynamic: true, pursuer: true,
       vy: 0, onGround: true, facing: -1,
     };
@@ -240,6 +276,21 @@
       ? 'EPSA’dan kaçtınız, ihbar ve kıdem tazminatı almaya hak kazandınız.'
       : 'Canavarlara yakalandın. Bir kez daha dene!';
     $('epsaFinalScore').textContent = state.score;
+    $('epsaNextBtn').hidden = !won || currentChapter >= 5;
+    // İlerlemeyi sunucuya bildir
+    if (token) {
+      api('/api/epsa/progress', {
+        method: 'POST',
+        body: { chapter: currentChapter, score: state.score, won },
+      }).then((d) => { progress.chapter = d.chapter; progress.best = d.best; progress.total = d.total; })
+        .catch(() => {});
+    } else {
+      if (won) {
+        progress.chapter = Math.max(progress.chapter, Math.min(5, currentChapter + 1));
+        try { localStorage.setItem('epsa_progress', JSON.stringify(progress)); } catch (e) { /* yoksay */ }
+      }
+      progress.best = Math.max(progress.best, state.score);
+    }
     show('end');
   }
 
@@ -255,7 +306,7 @@
     const dir = keys.right ? 1 : keys.left ? -1
       : swipeTimer > 0 ? swipeDir
         : autoRun ? 1 : 0;
-    s.vx = dir * MOVE * (s.slow > 0 ? 0.45 : 1);
+    s.vx = dir * MOVE * chapterSpeed() * (s.slow > 0 ? 0.45 : 1);
     s.x += s.vx * dt;
     for (const b of solids()) {
       if (s.x < b.x + b.w && s.x + PW > b.x && s.y < b.y + b.h && s.y + PH > b.y) {
@@ -308,11 +359,11 @@
       const dist = s.x - e.x;
 
       if (e.pursuer) {
-        e.vx = (dist >= 0 ? 1 : -1) * 205;
-        if (e.x - s.x > 1200) { e.x = s.camera + W + 90; e.vx = -205; }
+        e.vx = (dist >= 0 ? 1 : -1) * 205 * chapterSpeed();
+        if (e.x - s.x > 1200) { e.x = s.camera + W + 90; e.vx = -205 * chapterSpeed(); }
       }
       const chasing = e.pursuer || (Math.abs(dist) < 320 && Math.abs(s.y - e.y) < 150);
-      if (!e.pursuer && chasing) e.vx = (dist >= 0 ? 1 : -1) * 78;
+      if (!e.pursuer && chasing) e.vx = (dist >= 0 ? 1 : -1) * 78 * chapterSpeed();
       if (!e.dynamic && !e.pursuer && !chasing && e.vx === 0) e.vx = 55;
       e.facing = e.vx >= 0 ? 1 : -1;
 
@@ -614,9 +665,10 @@
     const g = groundY();
     const cam = s.camera;
 
+    const theme = (CHAPTERS[currentChapter - 1] || CHAPTERS[0]).sky;
     const sky = ctx.createLinearGradient(0, 0, 0, H);
-    sky.addColorStop(0, '#7dd3fc');
-    sky.addColorStop(1, '#e0f2fe');
+    sky.addColorStop(0, theme[0]);
+    sky.addColorStop(1, theme[1]);
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, W, H);
 
@@ -788,6 +840,63 @@
     });
   }
 
+  /* ---------- Bölümler ve sıralama ---------- */
+  function renderChapters() {
+    const box = $('epsaChapters');
+    if (!box) return;
+    box.innerHTML = '';
+    CHAPTERS.forEach((c, i) => {
+      const lvl = i + 1;
+      const locked = lvl > progress.chapter;
+      const row = document.createElement('div');
+      row.className = 'epsa-chapter-row' + (locked ? ' locked' : '');
+      const num = document.createElement('span');
+      num.textContent = locked ? '🔒' : lvl;
+      const nm = document.createElement('strong');
+      nm.textContent = c.badge + ' · ' + c.name;
+      const btn = document.createElement('button');
+      btn.textContent = locked ? 'Kilitli' : 'Oyna';
+      btn.disabled = locked;
+      if (!locked) btn.addEventListener('click', () => start(lvl));
+      row.append(num, nm, btn);
+      box.appendChild(row);
+    });
+    $('epsaUser').textContent = token
+      ? '✅ Giriş yapıldı — ilerlemen tüm cihazlarda saklanıyor.'
+      : 'Giriş yapmazsan ilerlemen sadece bu cihazda tutulur.';
+  }
+
+  async function loadStart() {
+    if (!token) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('epsa_progress') || 'null');
+        if (saved) progress = { ...progress, ...saved };
+      } catch (e) { /* bozuk kayıt */ }
+    } else {
+      try {
+        const d = await api('/api/epsa/progress');
+        progress = { chapter: d.chapter, best: d.best, total: d.total };
+      } catch (e) { /* giriş geçersiz olabilir */ }
+    }
+    renderChapters();
+    const box = $('epsaLeaders');
+    if (!box) return;
+    box.innerHTML = '';
+    try {
+      const d = await api('/api/epsa/leaders');
+      d.leaders.forEach((u, i) => {
+        const row = document.createElement('div');
+        row.className = 'epsa-leader-row';
+        const a = document.createElement('span'); a.textContent = '#' + (i + 1);
+        const b = document.createElement('span'); b.textContent = u.username;
+        const c = document.createElement('span');
+        c.textContent = (u.epsa_chapter - 1) + ' bölüm · ' + u.epsa_best + ' puan';
+        row.append(a, b, c);
+        box.appendChild(row);
+      });
+    } catch (e) { /* sıralama yüklenemedi */ }
+  }
+
   /* ---------- Girdi ---------- */
   window.addEventListener('keydown', (e) => {
     if (e.code === 'ArrowLeft') { keys.left = true; e.preventDefault(); }
@@ -841,8 +950,9 @@
     autoRun = !autoRun;
     $('epsaAutoBtn').textContent = autoRun ? '✅ Oto Koşu' : '▶️ Oto Koşu';
   });
-  $('epsaStartBtn').addEventListener('click', start);
-  $('epsaRetryBtn').addEventListener('click', start);
+  $('epsaStartBtn').addEventListener('click', () => start(progress.chapter));
+  $('epsaRetryBtn').addEventListener('click', () => start(currentChapter));
+  $('epsaNextBtn').addEventListener('click', () => start(Math.min(5, currentChapter + 1)));
   $('epsaPauseBtn').addEventListener('click', () => {
     paused = !paused;
     $('epsaPauseBox').hidden = !paused;
@@ -862,4 +972,6 @@
   ['contextmenu', 'selectstart', 'dragstart'].forEach((evt) => {
     document.addEventListener(evt, (e) => e.preventDefault());
   });
+
+  loadStart();
 })();

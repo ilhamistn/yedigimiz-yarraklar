@@ -24,6 +24,11 @@
           <span>Canavarlara zıpla, onları yen.</span>
           <span>Rozet (10) ve elmasları (50) topla, bayrağa ulaş.</span>
         </div>
+        <div class="chapter-heading">🏁 BÖLÜMLER</div>
+        <div id="epsaChapters" class="epsa-chapters"></div>
+        <p id="epsaUser" class="epsa-hint">Giriş yapmazsan ilerlemen sadece bu cihazda tutulur.</p>
+        <div class="chapter-heading">🏆 EPSA SIRALAMASI</div>
+        <div id="epsaLeaders" class="epsa-leaders"></div>
         <div class="epsa-enemies">
           <span>👤 Mikail Abi</span>
           <span>👤 Aycan Hanım</span>
@@ -37,6 +42,7 @@
     <!-- OYUN -->
     <section id="epsaGame" class="epsa-screen">
       <div class="epsa-hud">
+        <span id="epsaChapterLabel">1. Bölüm</span>
         <span>💰 <strong id="epsaScore">0</strong></span>
         <span>❤️ <strong id="epsaLives">3</strong></span>
         <span>⏱️ <strong id="epsaTime">90</strong></span>
@@ -66,6 +72,7 @@
         <h2 class="epsa-title" id="epsaEndTitle"></h2>
         <p class="epsa-sub" id="epsaEndText"></p>
         <p class="epsa-final">Toplanan rozet: <strong id="epsaFinalScore">0</strong></p>
+        <button class="btn btn-primary" id="epsaNextBtn" hidden>Sonraki Bölüm</button>
         <button class="btn btn-primary" id="epsaRetryBtn">Tekrar Dene</button>
         <a class="btn btn-outline epsa-link" href="index.html">Ana Menüye Dön</a>
       </div>

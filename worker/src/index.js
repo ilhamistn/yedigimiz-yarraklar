@@ -46,6 +46,9 @@ function publicUser(row) {
     ownedShoes: row.owned_shoes || 1,
     capeOwned: row.cape_owned === 1,
     capeActive: row.cape_active === 1,
+    epsaChapter: row.epsa_chapter || 1,
+    epsaBest: row.epsa_best || 0,
+    epsaTotal: row.epsa_total || 0,
     approved: row.approved === 1,
     storyLevel: row.story_level || 1,
     skinTone: row.skin_tone || 0,
@@ -385,6 +388,44 @@ export default {
       }
       await env.DB.prepare('UPDATE users SET face = ? WHERE id = ?').bind(face, user.id).run();
       return json({ ok: true, face });
+    }
+
+    // ---- EPSA ilerlemesi ----
+    if (path === '/api/epsa/progress' && method === 'GET') {
+      const user = await authenticate(request, env);
+      if (!user) return fail('Giriş yapmalısın.', 401);
+      return json({
+        chapter: user.epsa_chapter || 1,
+        best: user.epsa_best || 0,
+        total: user.epsa_total || 0,
+      });
+    }
+
+    if (path === '/api/epsa/progress' && method === 'POST') {
+      const user = await authenticate(request, env);
+      if (!user) return fail('Giriş yapmalısın.', 401);
+      const body = await readBody(request);
+      const chapter = body && body.chapter;
+      const score = body && body.score;
+      const won = !!(body && body.won);
+      if (!Number.isInteger(chapter) || chapter < 1 || chapter > 5) return fail('Geçersiz bölüm.');
+      if (!Number.isInteger(score) || score < 0 || score > 100000) return fail('Geçersiz puan.');
+
+      const current = user.epsa_chapter || 1;
+      const nextChapter = won && chapter === current ? Math.min(5, current + 1) : current;
+      const best = Math.max(user.epsa_best || 0, score);
+      await env.DB.prepare(
+        'UPDATE users SET epsa_chapter = ?, epsa_best = ?, epsa_total = epsa_total + ? WHERE id = ?'
+      ).bind(nextChapter, best, score, user.id).run();
+      return json({ ok: true, chapter: nextChapter, best, total: (user.epsa_total || 0) + score });
+    }
+
+    // ---- EPSA sıralaması (herkese açık) ----
+    if (path === '/api/epsa/leaders' && method === 'GET') {
+      const { results } = await env.DB.prepare(
+        'SELECT username, epsa_chapter, epsa_best, epsa_total FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY epsa_chapter DESC, epsa_best DESC, username ASC LIMIT 10'
+      ).all();
+      return json({ leaders: results });
     }
 
     // ---- Lider tablosu (herkese açık) ----
