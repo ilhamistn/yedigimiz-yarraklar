@@ -222,7 +222,7 @@
     $('epsaEndIcon').textContent = won ? '🏆' : '💀';
     $('epsaEndTitle').textContent = won ? 'EPSA’DAN KAÇTIN!' : 'EPSA YAKALADI!';
     $('epsaEndText').textContent = won
-      ? 'Mikail Abi, Aycan Hanım ve Esin Hanım’ı atlattın.'
+      ? 'EPSA’dan kaçtınız, ihbar ve kıdem tazminatı almaya hak kazandınız.'
       : 'Canavarlara yakalandın. Bir kez daha dene!';
     $('epsaFinalScore').textContent = state.score;
     show('end');
@@ -413,6 +413,38 @@
   }
 
   /* ---------- Çizim ---------- */
+  function rr(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawEpsaLogo(x, y, scale, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = '#ffffff';
+    rr(-92, -36, 184, 72, 6);
+    ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.font = 'italic 900 44px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('EPSA', -4, 8);
+    ctx.fillStyle = '#e11d2e';
+    ctx.beginPath(); ctx.arc(60, -3, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(-80, 13, 160, 3);
+    ctx.font = 'bold 9px Arial, sans-serif';
+    ctx.fillText('POWER OF INNOVATION', 0, 27);
+    ctx.restore();
+  }
+
   function drawHero(x, y) {
     const facing = state.vx >= 0 ? 1 : -1;
     const step = state.onGround ? Math.sin(animTime * 14) * 4 : 0;
@@ -579,6 +611,11 @@
       ctx.fill();
     }
 
+    // Arka planda EPSA logosu (yavaş paralaks)
+    let lx = W * 0.72 - (cam * 0.12) % (LEVEL.width);
+    lx = ((lx % (W + 400)) + (W + 400)) % (W + 400) - 200;
+    drawEpsaLogo(lx, 100, 0.5, 0.22);
+
     // zeminler
     for (const b of LEVEL.ground) {
       const x = b.x - cam;
@@ -632,27 +669,56 @@
       ctx.fillText('ÇIKIŞ', gx + 8, g - 116);
     }
 
-    // Çuval tuzakları
+    // Çuval tuzakları — şık etiketli kumaş çuvallar
     for (const bag of s.sacks) {
       const x = bag.x - cam;
-      if (x < -60 || x > W + 60) continue;
+      if (x < -70 || x > W + 70) continue;
+      const color = bag.label === 'BUDA100' ? '#f59e0b'
+        : bag.label === 'BUDA200' ? '#a855f7' : '#0ea5e9';
       ctx.save();
-      ctx.fillStyle = '#78350f';
+      // nabız gibi atan renk halkası
+      ctx.globalAlpha = 0.16 + Math.sin(animTime * 3 + bag.x) * 0.06;
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.ellipse(x + 19, bag.y + 20, 32, 30, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      // zemin gölgesi
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath(); ctx.ellipse(x + 19, bag.y + 36, 20, 5, 0, 0, Math.PI * 2); ctx.fill();
+      // kumaş gövde
+      const bgrad = ctx.createLinearGradient(x, bag.y, x + 38, bag.y + 36);
+      bgrad.addColorStop(0, '#b45309');
+      bgrad.addColorStop(1, '#78350f');
+      ctx.fillStyle = bgrad;
       ctx.beginPath();
-      ctx.moveTo(x + 4, bag.y + 34);
-      ctx.quadraticCurveTo(x - 2, bag.y + 10, x + 10, bag.y + 4);
-      ctx.lineTo(x + 28, bag.y + 4);
-      ctx.quadraticCurveTo(x + 40, bag.y + 10, x + 34, bag.y + 34);
-      ctx.closePath();
+      ctx.moveTo(x + 7, bag.y + 8);
+      ctx.quadraticCurveTo(x - 1, bag.y + 17, x + 4, bag.y + 32);
+      ctx.quadraticCurveTo(x + 19, bag.y + 40, x + 34, bag.y + 32);
+      ctx.quadraticCurveTo(x + 39, bag.y + 17, x + 31, bag.y + 8);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x + 8, bag.y + 29); ctx.lineTo(x + 30, bag.y + 29); ctx.stroke();
+      // bağlanan ağız
+      ctx.fillStyle = '#d97706';
+      ctx.fillRect(x + 11, bag.y + 2, 16, 8);
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x + 11, bag.y + 5); ctx.lineTo(x + 27, bag.y + 5); ctx.stroke();
+      // etiket plakası
+      ctx.fillStyle = '#fffbeb';
+      rr(x + 1, bag.y + 15, 36, 14, 3);
       ctx.fill();
-      ctx.fillStyle = '#a16207';
-      ctx.fillRect(x + 9, bag.y, 20, 8);
-      ctx.font = 'bold 9px sans-serif';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.font = 'bold 8px Arial, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#fef3c7';
-      ctx.fillText(bag.label, x + 19, bag.y + 24);
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = color;
+      ctx.fillText(bag.label, x + 19, bag.y + 22.5);
       ctx.restore();
     }
+    ctx.textBaseline = 'alphabetic';
 
     for (const e of s.enemies) if (!e.dead && e.x - cam > -60 && e.x - cam < W + 60) drawEnemy(e);
 

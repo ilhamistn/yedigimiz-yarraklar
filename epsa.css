@@ -6,6 +6,24 @@
   background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25);
   border-radius: 22px; padding: 24px 20px;
 }
+.epsa-logo-mark {
+  width: 150px; margin: 0 auto 8px; padding: 6px 4px 5px;
+  background: #fff; border-radius: 4px; text-align: center;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+}
+.epsa-logo-mark strong {
+  display: block; position: relative; color: #000;
+  font: italic 900 34px/1 Arial, sans-serif; letter-spacing: -2px;
+}
+.epsa-logo-mark strong::after {
+  content: ''; position: absolute; right: 6px; top: 9px;
+  width: 9px; height: 9px; border-radius: 50%; background: #e11d2e;
+}
+.epsa-logo-mark span {
+  display: block; margin-top: 3px; border-top: 2px solid #000;
+  padding-top: 2px; color: #000; font: bold 7px Arial, sans-serif;
+  letter-spacing: 0.6px;
+}
 .epsa-logo { font-size: 56px; }
 .epsa-title { font-size: clamp(28px, 8vw, 40px); font-weight: 900; margin: 8px 0 4px; color: #fff; }
 .epsa-title span { color: #fde047; }
