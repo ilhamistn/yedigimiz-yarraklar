@@ -93,7 +93,7 @@
     return {
       x: 60, y: groundY() - PH, vx: 0, vy: 0, onGround: true,
       lives: 3, score: 0, time: 90, camera: 0, invuln: 0,
-      slow: 0, spawnTimer: 3,
+      slow: 0, spawnTimer: 3, airJumps: 0,
       sacks: LEVEL.sacks.map((s) => ({ ...s, y: groundY() - 36, used: 0 })),
       enemies: LEVEL.enemies.map((e, i) => ({
         ...e, y: groundY() - 30, vx: i % 2 === 0 ? 55 : -55,
@@ -144,9 +144,17 @@
   }
 
   function jump() {
-    if (state && state.onGround && !paused) {
-      state.vy = -JUMP;
-      state.onGround = false;
+    if (!state || paused) return;
+    const s = state;
+    if (s.onGround) {
+      s.vy = -JUMP;
+      s.onGround = false;
+      s.airJumps = 0;
+    } else if (s.airJumps < 1) {
+      // Havada bir kez daha zıplama
+      s.airJumps++;
+      s.vy = -JUMP * 0.9;
+      s.floaters.push({ x: s.x + 14, y: s.y - 6, text: '⤴️', life: 0.5 });
     }
   }
 
@@ -205,7 +213,7 @@
     s.onGround = false;
     for (const b of solids()) {
       if (s.x < b.x + b.w && s.x + PW > b.x && s.y < b.y + b.h && s.y + PH > b.y) {
-        if (s.vy > 0) { s.y = b.y - PH; s.vy = 0; s.onGround = true; }
+        if (s.vy > 0) { s.y = b.y - PH; s.vy = 0; s.onGround = true; s.airJumps = 0; }
         else if (s.vy < 0) { s.y = b.y + b.h; s.vy = 0; }
       }
     }
@@ -218,10 +226,13 @@
       const alive = s.enemies.filter((e) => !e.dead).length;
       if (alive < 7) {
         const i = Math.floor(Math.random() * LEVEL.names.length);
-        const ahead = Math.min(LEVEL.width - 60, s.x + 420 + Math.random() * 220);
+        const fromBehind = Math.random() < 0.4;
+        const spawnX = fromBehind
+          ? Math.max(20, s.x - 250 - Math.random() * 130)
+          : Math.min(LEVEL.width - 60, s.x + 420 + Math.random() * 220);
         s.enemies.push({
-          name: LEVEL.names[i], color: LEVEL.colors[i], x: ahead,
-          min: 0, max: LEVEL.width, y: groundY() - 30, vx: -70,
+          name: LEVEL.names[i], color: LEVEL.colors[i], x: spawnX,
+          min: 0, max: LEVEL.width, y: groundY() - 30, vx: fromBehind ? 70 : -70,
           dead: false, phase: Math.random() * 6, slow: 0, touch: 0, dynamic: true,
         });
       }
@@ -543,6 +554,28 @@
     }
 
     for (const e of s.enemies) if (!e.dead && e.x - cam > -60 && e.x - cam < W + 60) drawEnemy(e);
+
+    // Ekran dışındaki canavarlar için kenar uyarıları
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textBaseline = 'alphabetic';
+    for (const e of s.enemies) {
+      if (e.dead) continue;
+      const sx = e.x - cam;
+      if (sx < -20 && sx > -900) {
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        ctx.fillRect(4, g - 74, 104, 18);
+        ctx.fillStyle = '#fecaca';
+        ctx.textAlign = 'left';
+        ctx.fillText('◀ ' + e.name, 8, g - 61);
+      } else if (sx > W + 20 && sx < W + 900) {
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        ctx.fillRect(W - 108, g - 74, 104, 18);
+        ctx.fillStyle = '#fecaca';
+        ctx.textAlign = 'left';
+        ctx.fillText(e.name + ' ▶', W - 104, g - 61);
+      }
+    }
+    ctx.textAlign = 'left';
 
     if (s.invuln <= 0 || Math.floor(animTime * 12) % 2 === 0) {
       drawHero(s.x - cam, s.y);
