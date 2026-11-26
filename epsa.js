@@ -19,7 +19,7 @@
     if (state) {
       const g = groundY();
       state.sacks.forEach((bag) => { bag.y = g - 36; });
-      state.enemies.forEach((e) => { e.y = g - 30; });
+      state.enemies.forEach((e) => { e.y = g - 30; e.vy = 0; e.onGround = true; });
       if (state.onGround) state.y = g - PH;
     }
   }
@@ -117,6 +117,10 @@
     return list;
   }
 
+  function rectHit(b, x, y, w, h) {
+    return x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y;
+  }
+
   function fresh() {
     return {
       x: 60, y: groundY() - PH, vx: 0, vy: 0, onGround: true,
@@ -126,6 +130,7 @@
       enemies: LEVEL.enemies.map((e, i) => ({
         ...e, y: groundY() - 30, vx: i % 2 === 0 ? 55 : -55,
         dead: false, phase: i * 0.7, slow: 0, touch: 0, dynamic: false,
+        vy: 0, onGround: true, facing: i % 2 === 0 ? 1 : -1,
       })),
       pursuer: null,
       coins: buildCoins(groundY()),
@@ -144,6 +149,7 @@
       name: 'Mikail Abi', color: '#dc2626', x: state.camera + W + 90,
       min: 0, max: LEVEL.width, y: groundY() - 30, vx: -205,
       dead: false, phase: 0, slow: 0, touch: 0, dynamic: true, pursuer: true,
+      vy: 0, onGround: true, facing: -1,
     };
     state.enemies.push(state.pursuer);
     paused = false;
@@ -270,35 +276,74 @@
           name: LEVEL.names[i], color: LEVEL.colors[i], x: spawnX,
           min: 0, max: LEVEL.width, y: groundY() - 30, vx: fromBehind ? 70 : -70,
           dead: false, phase: Math.random() * 6, slow: 0, touch: 0, dynamic: true,
+          vy: 0, onGround: true, facing: fromBehind ? 1 : -1,
         });
       }
     }
 
-    // canavarlar: oyuncuyu görürse peşinden koşar, yoksa devriye gezer
+    // canavarlar: yer çekimi + zemin/platform çarpışması + uçurum algılama
+    const allSolids = solids();
     for (const e of s.enemies) {
       if (e.dead) continue;
       e.slow = Math.max(0, e.slow - dt);
       const slowMul = e.slow > 0 ? 0.4 : 1;
       const dist = s.x - e.x;
+
       if (e.pursuer) {
-        // Her zaman oyuncunun peşinden koşar (sağdan sürekli gelir)
         e.vx = (dist >= 0 ? 1 : -1) * 205;
-        if (e.x - s.x > 1200) {
-          e.x = s.camera + W + 90;
-          e.vx = -205;
+        if (e.x - s.x > 1200) { e.x = s.camera + W + 90; e.vx = -205; }
+      }
+      const chasing = e.pursuer || (Math.abs(dist) < 320 && Math.abs(s.y - e.y) < 150);
+      if (!e.pursuer && chasing) e.vx = (dist >= 0 ? 1 : -1) * 78;
+      if (!e.dynamic && !e.pursuer && !chasing && e.vx === 0) e.vx = 55;
+      e.facing = e.vx >= 0 ? 1 : -1;
+
+      // Uçurum var mı? Devriye dönüş yapar, kovalayan zıplar.
+      if (e.onGround) {
+        const probeX = e.x + (e.vx >= 0 ? 30 : -2);
+        const probeY = e.y + 32;
+        let groundAhead = false;
+        for (const b of allSolids) {
+          if (probeX > b.x && probeX < b.x + b.w && probeY >= b.y - 2 && probeY <= b.y + 10) {
+            groundAhead = true;
+            break;
+          }
+        }
+        if (!groundAhead) {
+          if (chasing) { e.vy = -JUMP * 0.8; e.onGround = false; }
+          else e.vx = -e.vx;
         }
       }
-      const chasing = e.pursuer || (Math.abs(dist) < 320 && Math.abs(s.y - e.y) < 90);
-      if (!e.pursuer && chasing) {
-        e.vx = (dist >= 0 ? 1 : -1) * 62;
-      } else if (!e.dynamic && !e.pursuer) {
-        if (e.vx === 0) e.vx = 55;
+
+      // Yüksekteki oyuncuya zıplama
+      if (chasing && e.onGround && s.y < e.y - 50 && Math.abs(dist) < 170) {
+        e.vy = -JUMP * 0.85;
+        e.onGround = false;
       }
+
+      // Yatay hareket + duvar çarpışması
       e.x += e.vx * dt * slowMul;
-      if (!e.dynamic && !chasing) {
-        if (e.x < e.min) { e.x = e.min; e.vx = Math.abs(e.vx); }
-        if (e.x > e.max) { e.x = e.max; e.vx = -Math.abs(e.vx); }
+      for (const b of allSolids) {
+        if (rectHit(b, e.x, e.y, 28, 30)) {
+          if (e.vx > 0) e.x = b.x - 28;
+          else if (e.vx < 0) e.x = b.x + b.w;
+          if (!chasing) e.vx = -e.vx;
+          e.facing = e.vx >= 0 ? 1 : -1;
+        }
       }
+      e.x = Math.max(0, Math.min(LEVEL.width - 28, e.x));
+
+      // Yer çekimi + dikey çarpışma
+      e.vy += GRAVITY * dt;
+      e.y += e.vy * dt;
+      e.onGround = false;
+      for (const b of allSolids) {
+        if (rectHit(b, e.x, e.y, 28, 30)) {
+          if (e.vy > 0) { e.y = b.y - 30; e.vy = 0; e.onGround = true; }
+          else if (e.vy < 0) { e.y = b.y + b.h; e.vy = 0; }
+        }
+      }
+
       if (e.dynamic && !e.pursuer && dist > 700) { e.dead = true; continue; }
 
       const hit = s.x < e.x + 28 && s.x + PW > e.x && s.y < e.y + 30 && s.y + PH > e.y;
@@ -398,36 +443,39 @@
   }
 
   function drawEnemy(e) {
+    // KRİTİK: x dünya konumundan ekrana çevrilip çizime uygulanmalı
     const x = e.x - state.camera;
-    const bob = Math.sin(animTime * 8 + e.phase) * 1.5;
+    const bob = e.onGround ? Math.sin(animTime * 8 + e.phase) * 1.5 : 0;
     const y = e.y + bob;
     const male = e.name === 'Mikail Abi';
     const longHair = e.name === 'Aycan Hanım';
     const glasses = e.name === 'Esin Hanım';
-    const swing = Math.sin(animTime * 10 + e.phase) * 6;
+    const running = Math.abs(e.vx) > 5 && e.onGround;
+    const swing = Math.sin(animTime * 10 + e.phase) * (running ? 6 : 1.2);
     const skin = '#f2b07d';
 
     ctx.save();
+    ctx.translate(x, 0);
+    if (e.facing < 0) { ctx.translate(28, 0); ctx.scale(-1, 1); }
+
     if (e.pursuer) {
       ctx.fillStyle = 'rgba(239,68,68,0.22)';
       ctx.beginPath(); ctx.arc(14, y + 14, 22 + Math.sin(animTime * 6) * 2, 0, Math.PI * 2); ctx.fill();
     }
-    // zemin gölgesi
     ctx.fillStyle = 'rgba(0,0,0,0.2)';
     ctx.beginPath(); ctx.ellipse(14, e.y + 32, 15, 4, 0, 0, Math.PI * 2); ctx.fill();
 
-    // bacaklar
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(10, y + 26); ctx.lineTo(9 + swing, y + 32); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(18, y + 26); ctx.lineTo(19 - swing, y + 32); ctx.stroke();
-    // koşarken ayak izi tozu
-    ctx.fillStyle = 'rgba(180,180,180,0.55)';
-    ctx.beginPath(); ctx.ellipse(8 - swing, y + 32, 4, 2, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(20 + swing, y + 32, 4, 2, 0, 0, Math.PI * 2); ctx.fill();
+    if (running) {
+      ctx.fillStyle = 'rgba(180,180,180,0.55)';
+      ctx.beginPath(); ctx.ellipse(8 - swing, y + 32, 4, 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(20 + swing, y + 32, 4, 2, 0, 0, Math.PI * 2); ctx.fill();
+    }
 
-    // gövde
     ctx.fillStyle = e.color;
     ctx.beginPath(); ctx.ellipse(14, y + 21, 12, 9, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#ffffff';
@@ -440,17 +488,13 @@
       ctx.closePath(); ctx.fill();
     }
 
-    // kollar
     ctx.strokeStyle = e.color;
     ctx.lineWidth = 4;
     ctx.beginPath(); ctx.moveTo(5, y + 18); ctx.lineTo(2 - swing * 1.3, y + 25); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(23, y + 18); ctx.lineTo(26 + swing * 1.3, y + 25); ctx.stroke();
 
-    // kafa
     ctx.fillStyle = skin;
     ctx.beginPath(); ctx.arc(14, y + 8, 9, 0, Math.PI * 2); ctx.fill();
-
-    // saç stilleri
     ctx.fillStyle = '#3f1d10';
     if (longHair) {
       ctx.beginPath(); ctx.ellipse(14, y + 5, 10, 10, 0, Math.PI, 0); ctx.fill();
@@ -463,7 +507,6 @@
       ctx.beginPath(); ctx.arc(22, y + 3, 4, 0, Math.PI * 2); ctx.fill();
     }
 
-    // gözler
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.ellipse(11, y + 8, 2.8, 2.2, 0, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(17, y + 8, 2.8, 2.2, 0, 0, Math.PI * 2); ctx.fill();
@@ -471,48 +514,45 @@
     ctx.beginPath(); ctx.arc(11.5 + swing * 0.1, y + 8, 1.4, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(17.5 + swing * 0.1, y + 8, 1.4, 0, Math.PI * 2); ctx.fill();
 
-    // kızgın kaşlar
     ctx.strokeStyle = '#3f1d10';
     ctx.lineWidth = 1.6;
     ctx.beginPath();
     ctx.moveTo(8, y + 3.5); ctx.lineTo(13, y + 5.5);
     ctx.moveTo(20, y + 3.5); ctx.lineTo(15, y + 5.5);
     ctx.stroke();
-
     if (glasses) {
       ctx.strokeStyle = '#111827';
       ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.arc(11, y + 8, 3.6, 0, Math.PI * 2);
       ctx.arc(17, y + 8, 3.6, 0, Math.PI * 2);
-      ctx.moveTo(14.6, y + 8); ctx.lineTo(14.6, y + 8);
       ctx.stroke();
     }
-
-    // ağız
     ctx.strokeStyle = '#9a4a22';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(11, y + 14);
     ctx.quadraticCurveTo(14, y + 12.5, 17, y + 14);
     ctx.stroke();
+    ctx.restore();
 
-    // isim etiketi
+    // İsim etiketi aynalanmadan, doğru yönde çizilir
+    ctx.save();
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
     const tw = ((ctx.measureText && ctx.measureText(e.name)) || {}).width || e.name.length * 6;
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(14 - tw / 2 - 4, y - 21, tw + 8, 14);
+    ctx.fillRect(x + 14 - tw / 2 - 4, y - 21, tw + 8, 14);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(e.name, 14, y - 11);
+    ctx.fillText(e.name, x + 14, y - 11);
     if (e.pursuer) {
       ctx.fillStyle = '#fca5a5';
       ctx.font = 'bold 9px sans-serif';
-      ctx.fillText('PEŞİNDE!', 14, y - 24);
+      ctx.fillText('PEŞİNDE!', x + 14, y - 24);
     }
     if (e.slow > 0) {
       ctx.font = '14px sans-serif';
-      ctx.fillText('🐌', 34, y - 21);
+      ctx.fillText('🐌', x + 34, y - 21);
     }
     ctx.restore();
   }
