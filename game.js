@@ -5,7 +5,7 @@
      API & oturum
      ============================================================ */
   const API = 'https://yedigimiz-yarraklar-api.ilhamiustun.workers.dev';
-  const APP_VERSION = 50;
+  const APP_VERSION = 51;
 
   const LEADER_TITLES = [
     'Obsidyen Yarrak Bükücü',
@@ -45,34 +45,44 @@
 
   const STORY_LEVELS = [
     {
-      title: '1. Bahçe Nöbeti',
-      desc: 'Sabah güneşiyle birlikte ilk patlıcanlar bahçeye girdi. Kaç, yoksa yarrak yiyeceksin.',
+      title: '1. Bahçe Nöbeti', badge: '🌱 Kolay',
+      desc: 'Sakin başlangıç. Az muz, yavaş patlıcanlar.',
       endText: 'Bahçeyi temizledin. Ama ufukta daha büyük bir sürü var...',
-      target: 5, speed: 250, gap: 1.25, variance: 0.6, double: false, triple: false,
+      target: 5, speed: 250, gap: 1.25, variance: 0.6,
+      bananaRate: 0.15, movingRate: 0.05, donutRate: 0.4, double: false, triple: false,
+      theme: ['#ffffff', '#f8fafc', '#e2e8f0'],
     },
     {
-      title: '2. Patlıcan Sürüsü',
-      desc: 'Artık ikişer ikişer geliyorlar. Arkadaşını da atlamayı unutma.',
+      title: '2. Patlıcan Sürüsü', badge: '🌿 Orta',
+      desc: 'İkili dalgalar ve daha fazla muz başlıyor.',
       endText: 'Sürüyü geçtin. Şimdi işler karışıyor...',
-      target: 10, speed: 310, gap: 1.1, variance: 0.5, double: true, triple: false,
+      target: 10, speed: 310, gap: 1.1, variance: 0.5,
+      bananaRate: 0.3, movingRate: 0.2, donutRate: 0.35, double: true, triple: false,
+      theme: ['#fef3c7', '#fde68a', '#fcd34d'],
     },
     {
-      title: '3. Gece Koşusu',
-      desc: 'Karanlıkta patlıcanlar daha hızlı. Gözünü açık tut.',
+      title: '3. Gece Koşusu', badge: '🌙 Zor',
+      desc: 'Karanlıkta hareketli engeller hızlanır.',
       endText: 'Geceyi atlattın. Tarla seni bekliyor.',
-      target: 15, speed: 370, gap: 0.95, variance: 0.45, double: true, triple: false,
+      target: 15, speed: 370, gap: 0.95, variance: 0.45,
+      bananaRate: 0.45, movingRate: 0.35, donutRate: 0.3, double: true, triple: false,
+      theme: ['#1e1b4b', '#312e81', '#4338ca'],
     },
     {
-      title: '4. Kızıl Tarla',
-      desc: 'Üçlü dalgalar başladı. Tek bir hata her şeyi bitirir.',
+      title: '4. Kızıl Tarla', badge: '🔥 Çok Zor',
+      desc: 'Üçlü dalgalar, hızlı ve hareketli patlıcanlar.',
       endText: 'Tarlayı geçtin. Son mücadele yakın.',
-      target: 22, speed: 430, gap: 0.82, variance: 0.4, double: true, triple: true,
+      target: 22, speed: 430, gap: 0.82, variance: 0.4,
+      bananaRate: 0.5, movingRate: 0.45, donutRate: 0.28, double: true, triple: true,
+      theme: ['#fecaca', '#fca5a5', '#f87171'],
     },
     {
-      title: '5. Son Yarrak',
-      desc: 'Final. Hızlarına hız katıldı. 30 yarraktan kaç ve hikayeyi bitir.',
+      title: '5. Son Yarrak', badge: '💀 Efsane',
+      desc: 'Final. Muz yağmuru, üçlü dalgalar, hiç durmadan koş.',
       endText: 'Efsane tamamlandı. Artık hiçbir patlıcan sana yetişemez!',
-      target: 30, speed: 480, gap: 0.7, variance: 0.35, double: true, triple: true,
+      target: 30, speed: 480, gap: 0.7, variance: 0.35,
+      bananaRate: 0.6, movingRate: 0.55, donutRate: 0.25, double: true, triple: true,
+      theme: ['#f3e8ff', '#d8b4fe', '#a855f7'],
     },
   ];
   const TOKEN_KEY = 'yy_token_v1';
@@ -282,6 +292,22 @@
     try {
       const data = await api('/api/leaderboard', { auth: false });
       list.innerHTML = '';
+      const cb = $('chapterLeaders');
+      cb.innerHTML = '';
+      (data.chapterLeaders || []).forEach((u, i) => {
+        const row = document.createElement('div');
+        row.className = 'admin-row leader-row';
+        const rank = document.createElement('span');
+        rank.className = 'admin-rank';
+        rank.textContent = '#' + (i + 1);
+        const name = document.createElement('strong');
+        name.textContent = u.username;
+        const stats = document.createElement('span');
+        stats.className = 'admin-stats';
+        stats.textContent = (u.story_level - 1) + ' bölüm · en iyi ' + u.best;
+        row.append(rank, name, stats);
+        cb.appendChild(row);
+      });
       const donutBox = $('donutBox');
       if (data.mostDonuts && data.mostDonuts.donuts > 0) {
         donutBox.hidden = false;
@@ -952,13 +978,17 @@
         if (s.score > 12 && r < 0.08) count = 3;
       }
 
+      const cfg = currentMode === 'story' && modeConfig ? modeConfig : null;
+      const bananaRate = cfg ? cfg.bananaRate : 0.35;
+      const movingRate = cfg ? cfg.movingRate : 0.35;
+      const donutRate = cfg ? cfg.donutRate : 0.32;
       const spacing = es * (1.7 + Math.random() * 0.7);
       for (let i = 0; i < count; i++) {
-        const moving = Math.random() < 0.35;
+        const moving = Math.random() < movingRate;
         s.eggs.push({
           x: W + 20 + i * (spacing + Math.random() * 25),
           counted: false,
-          kind: Math.random() < 0.35 ? 'banana' : 'eggplant',
+          kind: Math.random() < bananaRate ? 'banana' : 'eggplant',
           moving,
           phase: Math.random() * Math.PI * 2,
           freq: 1.6 + Math.random() * 1.8,
@@ -969,7 +999,7 @@
       }
 
       // Zıplayınca toplanan donut'lar
-      if (Math.random() < 0.32) {
+      if (Math.random() < donutRate) {
         s.eggs.push({
           x: W + 20 + spacing * (0.5 + Math.random() * 0.8),
           counted: false,
@@ -1146,8 +1176,16 @@
     const cw = charW(), ch = charH(), cx = charX();
     const es = eggSize();
 
-    // ---- Beyaz gökyüzü (gradyan önbellekte) ----
-    ctx.fillStyle = skyGradient || '#ffffff';
+    // ---- Gökyüzü: bölüm teması varsa onu kullan ----
+    if (currentMode === 'story' && modeConfig && modeConfig.theme) {
+      const tg = ctx.createLinearGradient(0, 0, 0, H);
+      tg.addColorStop(0, modeConfig.theme[0]);
+      tg.addColorStop(0.7, modeConfig.theme[1]);
+      tg.addColorStop(1, modeConfig.theme[2]);
+      ctx.fillStyle = tg;
+    } else {
+      ctx.fillStyle = skyGradient || '#ffffff';
+    }
     ctx.fillRect(0, 0, W, H);
 
     // ---- Bulutlar (yavaş paralaks) ----
@@ -1787,6 +1825,12 @@
     const unlocked = profile ? profile.storyLevel : 1;
     list.innerHTML = '';
     STORY_LEVELS.forEach((cfg, i) => {
+      if (i > 0 && i % 2 === 0) {
+        const sep = document.createElement('div');
+        sep.className = 'chapter-sep';
+        sep.textContent = '— SONRAKİ BÖLÜMLER —';
+        list.appendChild(sep);
+      }
       const lvl = i + 1;
       const locked = lvl > unlocked;
       const row = document.createElement('div');
@@ -1797,10 +1841,10 @@
       const info = document.createElement('div');
       info.style.flex = '1';
       const t = document.createElement('strong');
-      t.textContent = cfg.title;
+      t.textContent = cfg.badge + ' · ' + cfg.title;
       const d = document.createElement('small');
       d.className = 'story-desc';
-      d.textContent = cfg.desc + ' · Hedef: ' + cfg.target;
+      d.textContent = cfg.desc + ' · Hedef: ' + cfg.target + ' · Hız: ' + cfg.speed;
       info.append(t, d);
       const btn = document.createElement('button');
       btn.className = 'mini-btn approve';

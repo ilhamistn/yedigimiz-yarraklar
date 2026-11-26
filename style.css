@@ -276,6 +276,11 @@ input:focus { border-color: var(--accent); }
   white-space: nowrap;
 }
 .coin-line { font-size: 13px; color: #fde047; text-align: center; margin: 8px 0; }
+.chapter-board {
+  background: rgba(34,197,94,0.12); border: 1px solid rgba(74,222,128,0.45);
+  border-radius: 12px; padding: 10px; margin-bottom: 12px;
+}
+.chapter-board-title { font-size: 11px; font-weight: 900; color: #86efac; letter-spacing: 1px; }
 .donut-box {
   display: flex; align-items: center; gap: 12px;
   background: linear-gradient(135deg, rgba(236,72,153,0.22), rgba(168,85,247,0.18));
@@ -336,6 +341,10 @@ input:focus { border-color: var(--accent); }
 .story-row { cursor: pointer; }
 .story-row.locked { opacity: 0.45; cursor: default; }
 .story-desc { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; }
+.chapter-sep {
+  text-align: center; font-size: 10px; font-weight: 800; letter-spacing: 1px;
+  color: var(--accent); margin: 10px 0 4px;
+}
 
 input[type="range"] { width: 100%; margin: 4px 0 14px; accent-color: var(--accent); }
 .check-line { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }

@@ -398,7 +398,10 @@ export default {
       const mostDonuts = await env.DB.prepare(
         'SELECT username, donuts, coins FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY donuts DESC, username ASC LIMIT 1'
       ).first() || null;
-      return json({ users: results, mostEaten, mostDonuts });
+      const { results: chapterLeaders } = await env.DB.prepare(
+        'SELECT username, story_level, best FROM users WHERE approved = 1 AND is_admin = 0 ORDER BY story_level DESC, best DESC, username ASC LIMIT 5'
+      ).all();
+      return json({ users: results, mostEaten, mostDonuts, chapterLeaders });
     }
 
     // ---- Admin: tüm kullanıcılar ----
