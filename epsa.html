@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Escape from EPSA</title>
+  <link rel="stylesheet" href="style.css?v=39" />
+  <link rel="stylesheet" href="epsa.css?v=39" />
+</head>
+<body class="epsa-body">
+  <div id="epsaApp">
+
+    <!-- BAŞLANGIÇ -->
+    <section id="epsaStart" class="epsa-screen active">
+      <div class="epsa-card">
+        <div class="epsa-logo">🏃💨</div>
+        <h1 class="epsa-title">ESCAPE FROM <span>EPSA</span></h1>
+        <p class="epsa-sub">Klasik platform macerası — EPSA'dan kaç!</p>
+        <div class="epsa-help">
+          <span>⬅️ ➡️ — yürü</span>
+          <span>⬆️ / Boşluk — zıpla</span>
+          <span>Canavarlara zıpla, onları yen.</span>
+          <span>Rozetleri topla, bayrağa ulaş.</span>
+        </div>
+        <div class="epsa-enemies">
+          <span>👤 Mikail Abi</span>
+          <span>👤 Aycan Hanım</span>
+          <span>👤 Esin Hanım</span>
+        </div>
+        <button class="btn btn-primary" id="epsaStartBtn">OYUNA BAŞLA</button>
+        <a class="btn btn-outline epsa-link" href="index.html">Ana Menüye Dön</a>
+      </div>
+    </section>
+
+    <!-- OYUN -->
+    <section id="epsaGame" class="epsa-screen">
+      <div class="epsa-hud">
+        <span>💰 <strong id="epsaScore">0</strong></span>
+        <span>❤️ <strong id="epsaLives">3</strong></span>
+        <span>⏱️ <strong id="epsaTime">90</strong></span>
+        <button class="btn btn-ghost" id="epsaPauseBtn">⏸</button>
+      </div>
+      <div class="epsa-canvas-wrap" id="epsaCanvasWrap">
+        <canvas id="epsaCanvas"></canvas>
+        <div class="epsa-pause" id="epsaPauseBox" hidden>
+          <h2>Duraklatıldı</h2>
+          <button class="btn btn-primary" id="epsaResumeBtn">Devam Et</button>
+        </div>
+      </div>
+      <div class="epsa-controls">
+        <button class="epsa-pad" id="epsaLeft">⬅️</button>
+        <button class="epsa-pad" id="epsaJump">⬆️</button>
+        <button class="epsa-pad" id="epsaRight">➡️</button>
+      </div>
+    </section>
+
+    <!-- SONUÇ -->
+    <section id="epsaEnd" class="epsa-screen">
+      <div class="epsa-card">
+        <div class="epsa-logo" id="epsaEndIcon">🏆</div>
+        <h2 class="epsa-title" id="epsaEndTitle"></h2>
+        <p class="epsa-sub" id="epsaEndText"></p>
+        <p class="epsa-final">Toplanan rozet: <strong id="epsaFinalScore">0</strong></p>
+        <button class="btn btn-primary" id="epsaRetryBtn">Tekrar Dene</button>
+        <a class="btn btn-outline epsa-link" href="index.html">Ana Menüye Dön</a>
+      </div>
+    </section>
+
+  </div>
+  <script src="epsa.js?v=39"></script>
+</body>
+</html>
