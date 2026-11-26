@@ -99,6 +99,7 @@
         ...e, y: groundY() - 30, vx: i % 2 === 0 ? 55 : -55,
         dead: false, phase: i * 0.7, slow: 0, touch: 0, dynamic: false,
       })),
+      pursuer: null,
       coins: LEVEL.coinXs.map((x, i) => ({ x, y: i % 3 === 0 ? groundY() - 70 : groundY() - 45, got: false })),
       floaters: [],
       finished: false,
@@ -110,6 +111,13 @@
     show('game');
     resize();
     state = fresh();
+    // Sağdan gelen, hiç pes etmeyen kovalayıcı
+    state.pursuer = {
+      name: 'Mikail Abi', color: '#dc2626', x: state.camera + W + 90,
+      min: 0, max: LEVEL.width, y: groundY() - 30, vx: -205,
+      dead: false, phase: 0, slow: 0, touch: 0, dynamic: true, pursuer: true,
+    };
+    state.enemies.push(state.pursuer);
     paused = false;
     $('epsaPauseBox').hidden = true;
     updateHud(true);
@@ -244,10 +252,18 @@
       e.slow = Math.max(0, e.slow - dt);
       const slowMul = e.slow > 0 ? 0.4 : 1;
       const dist = s.x - e.x;
-      const chasing = Math.abs(dist) < 320 && Math.abs(s.y - e.y) < 90;
-      if (chasing) {
+      if (e.pursuer) {
+        // Her zaman oyuncunun peşinden koşar (sağdan sürekli gelir)
+        e.vx = (dist >= 0 ? 1 : -1) * 205;
+        if (e.x - s.x > 1200) {
+          e.x = s.camera + W + 90;
+          e.vx = -205;
+        }
+      }
+      const chasing = e.pursuer || (Math.abs(dist) < 320 && Math.abs(s.y - e.y) < 90);
+      if (!e.pursuer && chasing) {
         e.vx = (dist >= 0 ? 1 : -1) * 62;
-      } else if (!e.dynamic) {
+      } else if (!e.dynamic && !e.pursuer) {
         if (e.vx === 0) e.vx = 55;
       }
       e.x += e.vx * dt * slowMul;
@@ -255,7 +271,7 @@
         if (e.x < e.min) { e.x = e.min; e.vx = Math.abs(e.vx); }
         if (e.x > e.max) { e.x = e.max; e.vx = -Math.abs(e.vx); }
       }
-      if (e.dynamic && dist > 700) { e.dead = true; continue; }
+      if (e.dynamic && !e.pursuer && dist > 700) { e.dead = true; continue; }
 
       const hit = s.x < e.x + 28 && s.x + PW > e.x && s.y < e.y + 30 && s.y + PH > e.y;
       if (hit) {
@@ -357,10 +373,14 @@
     const male = e.name === 'Mikail Abi';
     const longHair = e.name === 'Aycan Hanım';
     const glasses = e.name === 'Esin Hanım';
-    const swing = Math.sin(animTime * 9 + e.phase) * 3;
+    const swing = Math.sin(animTime * 10 + e.phase) * 6;
     const skin = '#f2b07d';
 
     ctx.save();
+    if (e.pursuer) {
+      ctx.fillStyle = 'rgba(239,68,68,0.22)';
+      ctx.beginPath(); ctx.arc(14, y + 14, 22 + Math.sin(animTime * 6) * 2, 0, Math.PI * 2); ctx.fill();
+    }
     // zemin gölgesi
     ctx.fillStyle = 'rgba(0,0,0,0.2)';
     ctx.beginPath(); ctx.ellipse(14, e.y + 32, 15, 4, 0, 0, Math.PI * 2); ctx.fill();
@@ -371,6 +391,10 @@
     ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(10, y + 26); ctx.lineTo(9 + swing, y + 32); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(18, y + 26); ctx.lineTo(19 - swing, y + 32); ctx.stroke();
+    // koşarken ayak izi tozu
+    ctx.fillStyle = 'rgba(180,180,180,0.55)';
+    ctx.beginPath(); ctx.ellipse(8 - swing, y + 32, 4, 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(20 + swing, y + 32, 4, 2, 0, 0, Math.PI * 2); ctx.fill();
 
     // gövde
     ctx.fillStyle = e.color;
@@ -388,8 +412,8 @@
     // kollar
     ctx.strokeStyle = e.color;
     ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(5, y + 18); ctx.lineTo(2 - swing, y + 25); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(23, y + 18); ctx.lineTo(26 + swing, y + 25); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(5, y + 18); ctx.lineTo(2 - swing * 1.3, y + 25); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(23, y + 18); ctx.lineTo(26 + swing * 1.3, y + 25); ctx.stroke();
 
     // kafa
     ctx.fillStyle = skin;
@@ -450,6 +474,11 @@
     ctx.fillRect(14 - tw / 2 - 4, y - 21, tw + 8, 14);
     ctx.fillStyle = '#ffffff';
     ctx.fillText(e.name, 14, y - 11);
+    if (e.pursuer) {
+      ctx.fillStyle = '#fca5a5';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillText('PEŞİNDE!', 14, y - 24);
+    }
     if (e.slow > 0) {
       ctx.font = '14px sans-serif';
       ctx.fillText('🐌', 34, y - 21);
